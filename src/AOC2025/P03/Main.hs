@@ -1,4 +1,4 @@
-{-# LANGUAGE ApplicativeDo, RecordWildCards, BlockArguments #-}
+{-# LANGUAGE ApplicativeDo, RecordWildCards, BlockArguments, LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables, TypeApplications #-}
 module Main where
 
@@ -30,20 +30,24 @@ opts = do
 
     pure Options{..}
 
-solve :: forall a t. (Show a, Ord a, Bounded a, Traversable t, Applicative t, t ~ []) => Int -> t a -> t a
+solve :: forall a t. (Show a, Ord a, Traversable t, Applicative t, t ~ []) => Int -> t a -> t a
 solve n xs = r
   where
-    f acc x = let acc' = maybe id max acc x in (Just acc', acc')
-
-    go :: Int -> (t a, t [a], [a])
-    go 1 = let (Just r, ys) = mapAccumR f Nothing $ map (:[]) xs
-           in (xs, ys, r)
-    go n = let (xs', ys, _) = go (n - 1)
-               xs'' = minBound : xs'
-               (Just r, ys') = mapAccumR f Nothing $ zipWith (:) xs'' ys
-           in (xs'', ys', r)
-
     (_, _, r) = go n
+
+    scan = mapAccumR (\acc x -> let acc' = acc `max` x in (acc', acc')) Nothing
+
+    go :: Int -> (t (Maybe a), t (Maybe (t a)), t a)
+    go = \case
+      1 -> (xs', ys, r)
+        where
+          xs' = map Just xs
+          (Just r, ys) = scan $ map ((:[]) <$>) xs'
+      n -> (xs'', ys', r)
+        where
+          (xs', ys, _) = go (n - 1)
+          xs'' = Nothing : xs'
+          (Just r, ys') = scan $ zipWith (liftA2 (:)) xs'' ys
 
 main :: IO ()
 main = do
