@@ -20,19 +20,19 @@ opts = do
 
 type Digit = Int
 
-solve :: (Ord a, Bounded a) => [a] -> (a, a)
+solve :: (Ord a, Bounded a, Traversable t, Applicative t) => t a -> (a, a)
 solve xs = (x, y)
   where
     (_, rs) = mapAccumR (\acc x -> let acc' = acc `max` x in (acc', acc')) minBound xs
     (_, ls) = mapAccumL (\acc x -> let acc' = acc `max` x in (acc', acc)) minBound xs
-    (x, y) = maximum $ zip ls rs
+    (x, y) = maximum $ (,) <$> ls <*> rs
 
 main :: IO ()
 main = do
     Options{..} <- execParser $ info (opts <**> helper) fullDesc
     problems <- lines <$> readFile inFile
     s <- sum <$> for problems \prob -> do
-        let (x, y) = solve (map digitToInt prob)
+        let (x, y) = solve (ZipList . map digitToInt $ prob)
             val = (x * 10 + y)
         pure val
     print s
