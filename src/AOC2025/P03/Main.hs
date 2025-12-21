@@ -5,12 +5,15 @@ module Main where
 import Options.Applicative
 import Data.Traversable
 import Data.Char (digitToInt)
+import Text.Printf
+import Control.Monad (when)
 
 import Debug.Trace
 
 data Options = Options
     { inFile :: FilePath
     , batteries :: Int
+    , debug :: Bool
     }
 
 opts :: Parser Options
@@ -26,6 +29,10 @@ opts = do
       , short 'n'
       , help "Number of batteries to choose"
       , value 2
+      ]
+
+    debug <- switch . mconcat $
+      [ long "debug"
       ]
 
     pure Options{..}
@@ -54,5 +61,6 @@ main = do
     s <- sum <$> for problems \prob -> do
         let result = solve 0 batteries (map digitToInt prob)
             val = foldl (\s x -> 10 * s + x) 0 result
+        when debug $ printf "%s %d\n" prob val
         pure val
     print s
