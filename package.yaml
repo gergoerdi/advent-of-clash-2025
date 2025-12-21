@@ -1,0 +1,15 @@
+name: aoc2025
+author: Gergő Érdi <gergo@erdi.hu>
+version: 1.0.0
+category: acme
+license: MIT
+
+dependencies:
+  - base
+  - optparse-applicative
+
+executables:
+  p03:
+    source-dirs:
+      - src
+    main: AOC2025/P03/Main.hs
