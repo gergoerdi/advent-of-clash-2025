@@ -30,31 +30,29 @@ opts = do
 
     pure Options{..}
 
-solve :: forall a t. (Show a, Ord a, Traversable t, Applicative t, t ~ []) => Int -> t a -> t a
-solve n xs = r
+solve :: forall a t. (Ord a, Traversable t, Applicative t, t ~ []) => a -> Int -> t a -> t a
+solve lim n xs = r
   where
     (_, _, r) = go n
 
-    scan = mapAccumR (\acc x -> let acc' = acc `max` x in (acc', acc')) Nothing
+    scan = mapAccumR (\acc x -> let acc' = acc `max` x in (acc', acc')) (pure lim)
 
-    go :: Int -> (t (Maybe a), t (Maybe (t a)), t a)
     go = \case
-      1 -> (xs', ys, r)
-        where
-          xs' = map Just xs
-          (Just r, ys) = scan $ map ((:[]) <$>) xs'
-      n -> (xs'', ys', r)
-        where
-          (xs', ys, _) = go (n - 1)
-          xs'' = Nothing : xs'
-          (Just r, ys') = scan $ zipWith (liftA2 (:)) xs'' ys
+        1 -> (xs, ys, r)
+          where
+            (r, ys) = scan $ map (:[]) xs
+        n -> (xs'', ys', r)
+          where
+            (xs', ys, _) = go (n - 1)
+            xs'' = lim : xs'
+            (r, ys') = scan $ zipWith (:) xs'' ys
 
 main :: IO ()
 main = do
     Options{..} <- execParser $ info (opts <**> helper) fullDesc
     problems <- lines <$> readFile inFile
     s <- sum <$> for problems \prob -> do
-        let result = solve batteries (map digitToInt prob)
+        let result = solve 0 batteries (map digitToInt prob)
             val = foldl (\s x -> 10 * s + x) 0 result
         pure val
     print s
