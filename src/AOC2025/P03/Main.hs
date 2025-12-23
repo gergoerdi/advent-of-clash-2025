@@ -2,7 +2,8 @@
 {-# LANGUAGE ScopedTypeVariables, TypeApplications #-}
 module Main where
 
-import Clash.Prelude hiding (mapAccumR, mapAccumL)
+import Clash.Prelude hiding (mapAccumL, withSomeSNat)
+import GHC.TypeNats (withSomeSNat)
 
 import Options.Applicative
 import Data.Traversable
@@ -10,13 +11,12 @@ import qualified Data.List as L
 import Data.Char (digitToInt, intToDigit)
 import Text.Printf
 import Control.Monad (when)
-import Debug.Trace
 
-import Debug.Trace
+data Part = Part1 | Part2
 
 data Options = Options
     { inFile :: FilePath
-    , batteries :: Natural
+    , part :: Part
     , debug :: Bool
     }
 
@@ -28,11 +28,13 @@ opts = do
       , help "input filename"
       ]
 
-    batteries <- option auto . mconcat $
-      [ long "batteries"
-      , short 'n'
-      , help "Number of batteries to choose"
-      , value 2
+    part <- asum
+      [ flag' Part1 . mconcat $
+        [ long "part1"
+        ]
+      , flag' Part2 . mconcat $
+        [ long "part2"
+        ]
       ]
 
     debug <- switch . mconcat $
@@ -70,10 +72,16 @@ fromInput = L.foldr (\x xs -> fst $ shiftInAt0 xs (x :> Nil)) (pure undefined)
 main :: IO ()
 main = do
     Options{..} <- execParser $ info (opts <**> helper) fullDesc
+    -- let solve' = withSomeSNat batteries \k -> solve (maxSNat (SNat @100) $ snatProxy k)
+    let solve' xs = case part of
+            Part1 -> let result = solve (SNat @2) xs
+                    in foldl (\s x -> 10 * s + x) 0 result
+            Part2 -> let result = solve (SNat @12) xs
+                    in foldl (\s x -> 10 * s + x) 0 result
+
     problems <- lines <$> readFile inFile
     s <- sum <$> for problems \prob -> do
-        let result = solve (SNat @12) (fromInput $ fmap digitToInt prob)
-            val = foldl (\s x -> 10 * s + x) 0 result
-        when debug $ printf "%s %d\n" prob val
-        pure val
+        let result = solve' (fromInput $ fmap digitToInt prob)
+        when debug $ printf "%s %d\n" prob result
+        pure result
     print s
