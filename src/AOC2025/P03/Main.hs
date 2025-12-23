@@ -48,23 +48,24 @@ solve k xs = ys
   where
     n = length xs
 
-    step :: Index k -> Index (n + k) -> (a, Index (n + k))
-    step i start = (acc, idx + 1)
+    step :: Index k -> Index (n + k) -> (Index (n + k), a)
+    step i start = (maxidx, maxval)
       where
-        (~(Just acc), accs) = mapAccumL f Nothing xs'
+        ~(Just (maxidx, maxval)) = foldl f Nothing xs'
           where
-            f acc x' = let acc' = max acc x' in (acc', acc')
-
-        ~(Just idx) = elemIndex (Just acc) accs
+            f s Nothing = s
+            f s (Just (idx, val)) = case s of
+                Nothing -> Just (idx, val)
+                Just (maxidx, maxval) -> Just $ if val > maxval then (idx, val) else (maxidx, maxval)
 
         xs' = fmap f (imap (,) xs)
           where
             f (j, x)
                 | fromIntegral j > n - fromIntegral i - 1 = Nothing
                 | j < start = Nothing
-                | otherwise = Just x
+                | otherwise = Just (j, x)
 
-    ys = unfoldr k (\(i, j) -> let (y, j') = step i j in (y, (i - 1, j'))) (maxBound, 0)
+    ys = unfoldr k (\(i, j) -> let (j', y) = step i j in (y, (i - 1, j' + 1))) (maxBound, 0)
 
 fromInput :: [a] -> Vec 100 a
 fromInput = L.foldr (\x xs -> fst $ shiftInAt0 xs (x :> Nil)) (pure undefined)
