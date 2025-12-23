@@ -3,14 +3,13 @@
 module Main where
 
 import Clash.Prelude hiding (mapAccumL, withSomeSNat)
-import GHC.TypeNats (withSomeSNat)
 
 import Options.Applicative
 import Data.Traversable
 import qualified Data.List as L
 import Data.Char (digitToInt, intToDigit)
 import Text.Printf
-import Control.Monad (when)
+import Control.Monad (when, guard)
 
 data Part = Part1 | Part2
 
@@ -43,29 +42,36 @@ opts = do
 
     pure Options{..}
 
-solve :: forall a n k. (Show a, Ord a, KnownNat n, KnownNat k) => SNat k -> Vec (n + k) a -> Vec k a
+solve :: forall a n k. (Ord a, KnownNat n, KnownNat k) => SNat k -> Vec (n + k) a -> Vec k a
 solve k xs = ys
   where
     n = length xs
 
     step :: Index k -> Index (n + k) -> (Index (n + k), a)
-    step i start = (maxidx, maxval)
-      where
-        ~(Just (maxidx, maxval)) = foldl f Nothing xs'
-          where
-            f s Nothing = s
-            f s (Just (idx, val)) = case s of
-                Nothing -> Just (idx, val)
-                Just (maxidx, maxval) -> Just $ if val > maxval then (idx, val) else (maxidx, maxval)
-
-        xs' = fmap f (imap (,) xs)
-          where
-            f (j, x)
-                | fromIntegral j > n - fromIntegral i - 1 = Nothing
-                | j < start = Nothing
-                | otherwise = Just (j, x)
+    step = findMax xs
 
     ys = unfoldr k (\(i, j) -> let (j', y) = step i j in (y, (i - 1, j' + 1))) (maxBound, 0)
+
+findMax :: forall a n k. (Ord a, KnownNat n, KnownNat k) => Vec (n + k) a -> Index k -> Index (n + k) -> (Index (n + k), a)
+findMax xs i start = (maxidx, maxval)
+  where
+    ~(Just (maxidx, maxval)) = foldl f Nothing xs'
+      where
+        f s Nothing = s
+        f s (Just (idx, val)) = case s of
+            Nothing -> Just (idx, val)
+            Just (maxidx, maxval) -> Just $ if val > maxval then (idx, val) else (maxidx, maxval)
+
+    xs' = fmap f (imap (,) xs)
+      where
+        f :: (Index (n + k), a) -> Maybe (Index (n + k), a)
+        f (j, x) = (j, x) <$ guard (inside j)
+
+    end :: Index (n + k)
+    end = snatToNum (SNat @n) + fromIntegral (maxBound - i)
+
+    inside j = j >= fromIntegral start && j <= end
+
 
 fromInput :: [a] -> Vec 100 a
 fromInput = L.foldr (\x xs -> fst $ shiftInAt0 xs (x :> Nil)) (pure undefined)
