@@ -1,0 +1,9 @@
+with-compiler: ghc-9.12.2
+
+packages:
+        .                
+                
+allow-newer:
+        clash-prelude:base,
+        clash-prelude:ghc-prim,
+        clash-prelude:template-haskell

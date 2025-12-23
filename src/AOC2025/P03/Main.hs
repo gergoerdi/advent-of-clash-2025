@@ -1,5 +1,5 @@
 {-# LANGUAGE ApplicativeDo, RecordWildCards, BlockArguments, LambdaCase #-}
-{-# LANGUAGE ScopedTypeVariables, TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables, TypeApplications, RequiredTypeArguments #-}
 module Main where
 
 import Clash.Prelude hiding (mapAccumL, withSomeSNat)
@@ -42,18 +42,11 @@ opts = do
 
     pure Options{..}
 
-solve :: forall a n k. (Ord a, KnownNat n, KnownNat k) => SNat k -> Vec (n + k) a -> Vec k a
-solve k xs = ys
-  where
-    n = length xs
+solve :: forall a n. forall k -> (Ord a, KnownNat n, KnownNat k) => Vec (n + k) a -> Vec k a
+solve k xs = unfoldrI (\(i, j) -> let (y, j') = findMax xs i j in (y, (i - 1, j' + 1))) (maxBound :: Index k, 0)
 
-    step :: Index k -> Index (n + k) -> (Index (n + k), a)
-    step = findMax xs
-
-    ys = unfoldr k (\(i, j) -> let (j', y) = step i j in (y, (i - 1, j' + 1))) (maxBound, 0)
-
-findMax :: forall a n k. (Ord a, KnownNat n, KnownNat k) => Vec (n + k) a -> Index k -> Index (n + k) -> (Index (n + k), a)
-findMax xs i start = (maxidx, maxval)
+findMax :: forall a n k. (Ord a, KnownNat n, KnownNat k) => Vec (n + k) a -> Index k -> Index (n + k) -> (a, Index (n + k))
+findMax xs i start = (maxval, maxidx)
   where
     ~(Just (maxidx, maxval)) = foldl f Nothing xs'
       where
@@ -83,8 +76,8 @@ main :: IO ()
 main = do
     Options{..} <- execParser $ info (opts <**> helper) fullDesc
     let solve' = case part of
-            Part1 -> toOutput . solve (SNat @2)
-            Part2 -> toOutput . solve (SNat @12)
+            Part1 -> toOutput . solve 2
+            Part2 -> toOutput . solve 12
 
     problems <- lines <$> readFile inFile
     s <- sum <$> for problems \prob -> do
