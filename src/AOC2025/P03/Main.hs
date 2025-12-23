@@ -2,17 +2,21 @@
 {-# LANGUAGE ScopedTypeVariables, TypeApplications #-}
 module Main where
 
+import Clash.Prelude hiding (mapAccumR, mapAccumL)
+
 import Options.Applicative
 import Data.Traversable
-import Data.Char (digitToInt)
+import qualified Data.List as L
+import Data.Char (digitToInt, intToDigit)
 import Text.Printf
 import Control.Monad (when)
+import Debug.Trace
 
 import Debug.Trace
 
 data Options = Options
     { inFile :: FilePath
-    , batteries :: Int
+    , batteries :: Natural
     , debug :: Bool
     }
 
@@ -37,29 +41,38 @@ opts = do
 
     pure Options{..}
 
-solve :: forall a t. (Ord a, Traversable t, Applicative t, t ~ []) => a -> Int -> t a -> t a
-solve lim n xs = r
+solve :: forall a n k. (Show a, Ord a, KnownNat n, KnownNat k) => SNat k -> Vec (n + k) a -> Vec k a
+solve k xs = ys
   where
-    (_, _, r) = go n
+    n = length xs
 
-    scan = mapAccumR (\acc x -> let acc' = acc `max` x in (acc', acc')) (pure lim)
+    step :: Index k -> Index (n + k) -> (a, Index (n + k))
+    step i start = (acc, idx + 1)
+      where
+        (~(Just acc), accs) = mapAccumL f Nothing xs'
+          where
+            f acc x' = let acc' = max acc x' in (acc', acc')
 
-    go = \case
-        1 -> (xs, ys, r)
+        ~(Just idx) = elemIndex (Just acc) accs
+
+        xs' = fmap f (imap (,) xs)
           where
-            (r, ys) = scan $ map (:[]) xs
-        n -> (xs'', ys', r)
-          where
-            (xs', ys, _) = go (n - 1)
-            xs'' = lim : xs'
-            (r, ys') = scan $ zipWith (:) xs'' ys
+            f (j, x)
+                | fromIntegral j > n - fromIntegral i - 1 = Nothing
+                | j < start = Nothing
+                | otherwise = Just x
+
+    ys = unfoldr k (\(i, j) -> let (y, j') = step i j in (y, (i - 1, j'))) (maxBound, 0)
+
+fromInput :: [a] -> Vec 100 a
+fromInput = L.foldr (\x xs -> fst $ shiftInAt0 xs (x :> Nil)) (pure undefined)
 
 main :: IO ()
 main = do
     Options{..} <- execParser $ info (opts <**> helper) fullDesc
     problems <- lines <$> readFile inFile
     s <- sum <$> for problems \prob -> do
-        let result = solve 0 batteries (map digitToInt prob)
+        let result = solve (SNat @12) (fromInput $ fmap digitToInt prob)
             val = foldl (\s x -> 10 * s + x) 0 result
         when debug $ printf "%s %d\n" prob val
         pure val
