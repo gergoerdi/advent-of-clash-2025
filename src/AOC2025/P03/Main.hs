@@ -76,15 +76,15 @@ findMax xs i start = (maxidx, maxval)
 fromInput :: [a] -> Vec 100 a
 fromInput = L.foldr (\x xs -> fst $ shiftInAt0 xs (x :> Nil)) (pure undefined)
 
+toOutput :: (Num a) => Vec k a -> a
+toOutput = foldl (\s x -> 10 * s + x) 0
+
 main :: IO ()
 main = do
     Options{..} <- execParser $ info (opts <**> helper) fullDesc
-    -- let solve' = withSomeSNat batteries \k -> solve (maxSNat (SNat @100) $ snatProxy k)
-    let solve' xs = case part of
-            Part1 -> let result = solve (SNat @2) xs
-                    in foldl (\s x -> 10 * s + x) 0 result
-            Part2 -> let result = solve (SNat @12) xs
-                    in foldl (\s x -> 10 * s + x) 0 result
+    let solve' = case part of
+            Part1 -> toOutput . solve (SNat @2)
+            Part2 -> toOutput . solve (SNat @12)
 
     problems <- lines <$> readFile inFile
     s <- sum <$> for problems \prob -> do
