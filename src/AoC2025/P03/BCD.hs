@@ -5,8 +5,8 @@ import Clash.Prelude
 type Digit = Index 10
 type BCD n = Vec n Digit
 
-addBCD :: (KnownNat n, KnownNat k) => BCD (k + n) -> BCD n -> (Bit, BCD (k + n))
-addBCD xs ys = mapAccumR addDigit 0 $ zip xs (repeat 0 ++ ys)
+addBCD :: forall k n. (KnownNat n, KnownNat k, k <= n) => BCD n -> BCD k -> (Bit, BCD n)
+addBCD xs ys = mapAccumR addDigit 0 $ zip xs $ leToPlus @k @n (repeat 0 ++ ys)
   where
     addDigit cin (x, y) = (cout, z)
       where

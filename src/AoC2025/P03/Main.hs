@@ -61,7 +61,7 @@ main = do
             Part1 -> f (solve 2)
             Part2 -> f (solve 12)
           where
-            f :: forall k k0. (KnownNat k, KnownNat k0, 20 ~ k0 + k) => (BCD LineLen -> BCD k) -> BCD 20 -> String -> IO (BCD 20)
+            f :: forall k k0. (KnownNat k, k <= 20) => (BCD LineLen -> BCD k) -> BCD 20 -> String -> IO (BCD 20)
             f solve' s prob = do
                 let result = solve' $ fromInput . fmap (fromIntegral . digitToInt) $ prob
                 when verbose $ printf "%s %d\n" prob (fromBCD result)
