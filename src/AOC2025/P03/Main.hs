@@ -42,20 +42,22 @@ opts = do
 
     pure Options{..}
 
-solve :: forall a n. forall k -> (Ord a, KnownNat n, KnownNat k) => Vec (n + k) a -> Vec k a
-solve k xs = unfoldrI f (0, snatToNum (SNat @n))
+solve :: forall a n. forall k -> (Ord a, KnownNat n, KnownNat k) => Vec (n + 1 + k) a -> Vec k a
+solve k xs = unfoldrI f (0, snatToNum (SNat @(n + 1)))
   where
     f (start, end) = (x, (i + 1, end + 1))
       where
-        ~(Just (x, i)) = findMaxBetween start end xs
+        (i, x) = findMaxBetween start end xs
 
-findMaxBetween :: forall a n k. (Ord a, KnownNat n) => Index n -> Index n -> Vec n a -> Maybe (a, Index n)
-findMaxBetween start end xs = ifoldl f Nothing xs
+findMaxBetween :: (Ord a, KnownNat n) => Index (n + 1) -> Index (n + 1) -> Vec (n + 1) a -> (Index (n + 1), a)
+findMaxBetween start end = fold f . imap (,)
   where
-    f acc i x
-        | i < start || i > end = acc
-        | Just (maxx, maxi) <- acc, maxx >= x = acc
-        | otherwise = Just (x, i)
+    inside i = i >= start && i <= end
+    outside = not . inside
+
+    f (i, x) (j, y)
+      | inside j && (outside i || y > x) = (j, y)
+      | otherwise = (i, x)
 
 fromInput :: [a] -> Vec 100 a
 fromInput = L.foldr (\x xs -> fst $ shiftInAt0 xs (x :> Nil)) (pure undefined)
