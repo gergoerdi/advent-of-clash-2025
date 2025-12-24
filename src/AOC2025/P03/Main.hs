@@ -2,14 +2,18 @@
 {-# LANGUAGE ScopedTypeVariables, TypeApplications, RequiredTypeArguments #-}
 module Main where
 
-import Clash.Prelude hiding (mapAccumL, withSomeSNat)
+import Clash.Prelude hiding (mapAccumL, withSomeSNat, maximum)
 
 import Options.Applicative
 import Data.Traversable
+import Data.Foldable (maximum)
 import qualified Data.List as L
 import Data.Char (digitToInt, intToDigit)
 import Text.Printf
 import Control.Monad (when)
+import Data.Ord (Down(..))
+import Data.Maybe (fromJust)
+import Data.Coerce
 
 data Part = Part1 | Part2
 
@@ -42,22 +46,20 @@ opts = do
 
     pure Options{..}
 
-solve :: forall a n. forall k -> (Ord a, KnownNat n, KnownNat k) => Vec (n + 1 + k) a -> Vec k a
-solve k xs = unfoldrI f (0, snatToNum (SNat @(n + 1)))
+solve :: forall a n. forall k -> (Ord a, KnownNat n, KnownNat k) => Vec (n + k) a -> Vec k a
+solve k xs = unfoldrI f (0, snatToNum (SNat @n))
   where
     f (start, end) = (x, (i + 1, end + 1))
       where
-        (i, x) = findMaxBetween start end xs
+        (x, i) = findMaxBetween start end xs
 
-findMaxBetween :: (Ord a, KnownNat n) => Index (n + 1) -> Index (n + 1) -> Vec (n + 1) a -> (Index (n + 1), a)
-findMaxBetween start end = fold f . imap (,)
+findMaxBetween :: (Ord a, KnownNat n) => Index n -> Index n -> Vec n a -> (a, Index n)
+findMaxBetween start end = coerce . fromJust . maximum . imap mark
   where
     inside i = i >= start && i <= end
-    outside = not . inside
 
-    f (i, x) (j, y)
-      | inside j && (outside i || y > x) = (j, y)
-      | otherwise = (i, x)
+    mark i x | inside i = Just (x, Down i)
+             | otherwise = Nothing
 
 fromInput :: [a] -> Vec 100 a
 fromInput = L.foldr (\x xs -> fst $ shiftInAt0 xs (x :> Nil)) (pure undefined)
