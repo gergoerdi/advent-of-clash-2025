@@ -6,14 +6,12 @@ import Clash.Prelude hiding (mapAccumL, withSomeSNat, maximum)
 
 import Options.Applicative
 import Data.Traversable
-import Data.Foldable (maximum)
+import Data.Foldable (maximumBy)
 import qualified Data.List as L
 import Data.Char (digitToInt, intToDigit)
 import Text.Printf
 import Control.Monad (when)
-import Data.Ord (Down(..))
-import Data.Maybe (fromJust)
-import Data.Coerce
+import Data.Ord (Down(..), comparing)
 
 data Part = Part1 | Part2
 
@@ -51,15 +49,13 @@ solve k xs = unfoldrI f (0, snatToNum (SNat @n))
   where
     f (start, end) = (x, (i + 1, end + 1))
       where
-        (x, i) = findMaxBetween start end xs
+        (i, x) = findMaxBetween start end xs
 
-findMaxBetween :: (Ord a, KnownNat n) => Index n -> Index n -> Vec n a -> (a, Index n)
-findMaxBetween start end = coerce . fromJust . maximum . imap mark
+findMaxBetween :: (Ord a, KnownNat n) => Index n -> Index n -> Vec n a -> (Index n, a)
+findMaxBetween start end = maximumBy (comparing eval) . imap (,)
   where
     inside i = i >= start && i <= end
-
-    mark i x | inside i = Just (x, Down i)
-             | otherwise = Nothing
+    eval (i, x) = (inside i, x, Down i)
 
 fromInput :: [a] -> Vec 100 a
 fromInput = L.foldr (\x xs -> fst $ shiftInAt0 xs (x :> Nil)) (pure undefined)
