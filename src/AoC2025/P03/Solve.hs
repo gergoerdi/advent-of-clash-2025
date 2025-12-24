@@ -7,8 +7,8 @@ import Data.Traversable
 import Data.Foldable (maximumBy)
 import Data.Ord (Down(..), comparing)
 
-solve :: forall a n. forall k -> (Ord a, KnownNat n, KnownNat k) => Vec (n + k) a -> Vec k a
-solve k xs = unfoldrI f (0, snatToNum (SNat @n))
+solve :: forall a n. forall k -> (Ord a, KnownNat n, KnownNat k, 1 <= k) => Vec (n + k) a -> Vec k a
+solve k xs = unfoldrI f (0, fromSNat (SNat @n))
   where
     f (start, end) = (x, (i + 1, end + 1))
       where
