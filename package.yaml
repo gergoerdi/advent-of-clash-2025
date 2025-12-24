@@ -53,4 +53,4 @@ executables:
   p03:
     source-dirs:
       - src
-    main: AOC2025/P03/Main.hs
+    main: AoC2025/P03/Main.hs
