@@ -9,7 +9,7 @@ import Data.Traversable
 import qualified Data.List as L
 import Data.Char (digitToInt, intToDigit)
 import Text.Printf
-import Control.Monad (when, guard)
+import Control.Monad (when)
 
 data Part = Part1 | Part2
 
@@ -43,28 +43,19 @@ opts = do
     pure Options{..}
 
 solve :: forall a n. forall k -> (Ord a, KnownNat n, KnownNat k) => Vec (n + k) a -> Vec k a
-solve k xs = unfoldrI (\(i, j) -> let (y, j') = findMax xs i j in (y, (i - 1, j' + 1))) (maxBound :: Index k, 0)
-
-findMax :: forall a n k. (Ord a, KnownNat n, KnownNat k) => Vec (n + k) a -> Index k -> Index (n + k) -> (a, Index (n + k))
-findMax xs i start = (maxval, maxidx)
+solve k xs = unfoldrI f (0, snatToNum (SNat @n))
   where
-    ~(Just (maxidx, maxval)) = foldl f Nothing xs'
+    f (start, end) = (x, (i + 1, end + 1))
       where
-        f s Nothing = s
-        f s (Just (idx, val)) = case s of
-            Nothing -> Just (idx, val)
-            Just (maxidx, maxval) -> Just $ if val > maxval then (idx, val) else (maxidx, maxval)
+        ~(Just (x, i)) = findMaxBetween start end xs
 
-    xs' = fmap f (imap (,) xs)
-      where
-        f :: (Index (n + k), a) -> Maybe (Index (n + k), a)
-        f (j, x) = (j, x) <$ guard (inside j)
-
-    end :: Index (n + k)
-    end = snatToNum (SNat @n) + fromIntegral (maxBound - i)
-
-    inside j = j >= fromIntegral start && j <= end
-
+findMaxBetween :: forall a n k. (Ord a, KnownNat n) => Index n -> Index n -> Vec n a -> Maybe (a, Index n)
+findMaxBetween start end xs = ifoldl f Nothing xs
+  where
+    f acc i x
+        | i < start || i > end = acc
+        | Just (maxx, maxi) <- acc, maxx >= x = acc
+        | otherwise = Just (x, i)
 
 fromInput :: [a] -> Vec 100 a
 fromInput = L.foldr (\x xs -> fst $ shiftInAt0 xs (x :> Nil)) (pure undefined)
