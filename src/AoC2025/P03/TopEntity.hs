@@ -58,7 +58,8 @@ showDigit d = fromIntegral d + ascii '0'
 
 data Phase n k l
     = ShiftIn (Index n)
-    | Calculate (Index n) (Index n) (Index k)
+    | Prepare (Index n) (Index n) (Index k)
+    | Calculate (Index n) (Index n) (Index k) (Index (CLog 2 n + 1))
     | Add
     | ShiftOut (Index l)
     | ShiftOutNewline
@@ -67,6 +68,7 @@ data Phase n k l
 data St n k l = St
     { phase :: Phase n k l
     , row :: BCD n
+    , buf :: Vec n (Index n, Digit)
     , curr :: BCD k
     , acc :: BCD l
     }
@@ -79,19 +81,32 @@ control (shift_in, out_ack) = gets phase >>= \case
             pure Wait
         Df.Data shift_in -> do
             modify \st -> st
-              { phase = next ShiftIn i $ Calculate 0 (fromSNat (SNat @(n - k))) 0
+              { phase = next ShiftIn i $ Prepare 0 (fromSNat (SNat @(n - k))) 0
               , row = replace i shift_in (row st)
               }
             pure $ Consume shift_in
-    Calculate start end i -> do
-        row <- gets row
-        -- let (idx, x) = (start + 1, 1)
-        let (idx, x) = findMaxBetween start end row
-            start' = idx + 1
-            end' = end + 1
+    Prepare start end i -> do
         modify \st -> st
-            { curr = replace i x (curr st) }
-        goto $ next (Calculate start' end') i Add
+            { phase = Calculate start end i 0
+            , buf = imap (,) (row st)
+            }
+        pure Wait
+    Calculate start end i j -> do
+        case countSuccChecked j of
+            Just j' -> do
+                modify \st -> st
+                    { buf = solveStep start end (buf st)
+                    , phase = Calculate start end i j'
+                    }
+            Nothing -> do
+                buf <- gets buf
+                let (idx, x) = leToPlus @1 @n head buf
+                    start' = idx + 1
+                    end' = end + 1
+                modify \st -> st
+                    { curr = replace i x (curr st)
+                    , phase = next (Prepare start' end') i Add
+                    }
         pure Wait
     Add -> do
         modify \st -> st{ acc = addBCD (acc st) (curr st) }
@@ -124,6 +139,7 @@ controller n k l (shift_in, out_ack) = (in_ack, shift_out)
     s0 = St
       { phase = ShiftIn 0
       , row = repeat @n undefined
+      , buf = repeat @n undefined
       , curr = repeat @k undefined
       , acc = repeat @l 0
       }
@@ -139,10 +155,10 @@ data Control
     | Busy
     | Produce Digit
 
-createDomain vSystem{vName="Dom100", vPeriod = hzToPeriod 1_000_000}
+createDomain vSystem{vName="Dom100", vPeriod = hzToPeriod 100_000_000}
 
 topEntity
-    :: "CLK_1MHZ" ::: Clock Dom100
+    :: "CLK_100MHZ" ::: Clock Dom100
     -> "RESET"      ::: Reset Dom100
     -> "RX"         ::: Signal Dom100 Bit
     -> "TX"         ::: Signal Dom100 Bit

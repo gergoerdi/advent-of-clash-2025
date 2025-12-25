@@ -21,10 +21,16 @@ maxBy cmp x y = case cmp x y of
     _ -> x
 
 findMaxBetween :: forall n a. (Ord a, KnownNat n, 1 <= n) => Index n -> Index n -> Vec n a -> (Index n, a)
-findMaxBetween start end = leToPlus @1 @n $
-    head . last .
-    iterate (SNat @(CLog 2 n + 1)) (rollup (maxBy (comparing rank))) .
+findMaxBetween start end =
+    leToPlus @1 @n head .
+    iterateN (maxBound :: Index (CLog 2 n + 1)) (solveStep start end) .
     imap (,)
+  where
+    iterateN :: forall k a. (KnownNat k) => Index k -> (a -> a) -> a -> a
+    iterateN k f x = if k == 0 then x else iterateN (k - 1) f (f x)
+
+solveStep :: forall n a. (Ord a, KnownNat n, 1 <= n) => Index n -> Index n -> Vec n (Index n, a) -> Vec n (Index n, a)
+solveStep start end = rollup (maxBy (comparing rank))
   where
     rank :: (Index n, a) -> (Bool, a, Down (Index n))
     rank (i, x) = (inside i, x, Down i)
