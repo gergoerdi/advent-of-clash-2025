@@ -1,8 +1,138 @@
-{-# LANGUAGE NumericUnderscores #-}
+{-# LANGUAGE NumericUnderscores, LambdaCase, BlockArguments #-}
+{-# LANGUAGE RequiredTypeArguments #-}
 module AoC2025.P03.TopEntity where
 
 import Clash.Prelude
 import Clash.Annotations.TH
+import Clash.Class.Counter
+
+import AoC2025.Serial
+import AoC2025.P03.BCD
+import AoC2025.P03.Solve
+
+import Data.Word (Word8)
+import Data.Char (ord)
+import Control.Monad (when)
+import Control.Monad.State.Strict
+
+import Protocols
+import qualified Protocols.Df as Df
+
+countSuccChecked :: (Counter a) => a -> Maybe a
+countSuccChecked x = case countSucc ((0 :: Unsigned 1), x) of
+    (0, x') -> Just x'
+    (1, _) -> Nothing
+
+next :: (Counter a) => (a -> s) -> a -> s -> s
+next cons i after = maybe after cons $ countSuccChecked i
+
+ascii :: Char -> Word8
+ascii c
+    | code <= 0x7f = fromIntegral code
+    | otherwise = clashCompileError "Not an ASCII code point"
+  where
+    code = ord c
+
+type Stream dom a b = (Signal dom (Df.Data a), Signal dom Ack) -> (Signal dom Ack, Signal dom (Df.Data b))
+
+board
+    :: (HiddenClockResetEnable dom)
+    => forall n k l -> (KnownNat n, KnownNat k, KnownNat l, 1 <= n, 1 <= k, 1 <= l, k <= l, k <= n)
+    => Circuit (Df dom Word8) (Df dom Word8)
+board n k l =
+    Df.map parseDigit |>
+    Circuit (controller n k l) |>
+    Df.map showDigit
+
+parseDigit :: Word8 -> Digit
+parseDigit x = fromIntegral $ x - ascii '0'
+
+showDigit :: Digit -> Word8
+showDigit d = fromIntegral d + ascii '0'
+
+data Phase n k l
+    = ShiftIn (Index n)
+    | Calculate (Index n) (Index n) (Index k)
+    | Add
+    | ShiftOut (Index l)
+    deriving (Generic, NFDataX, Show)
+
+data St n k l = St
+    { phase :: Phase n k l
+    , row :: BCD n
+    , curr :: BCD k
+    , acc :: BCD l
+    }
+    deriving (Generic, NFDataX, Show)
+
+control :: forall n k l. (KnownNat n, KnownNat k, KnownNat l, 1 <= n, 1 <= k, k <= n, k <= l, 1 <= l) => (Df.Data Digit, Ack) -> State (St n k l) Control
+control (shift_in, out_ack) = gets phase >>= \case
+    ShiftIn i -> case shift_in of
+        Df.NoData -> do
+            pure Wait
+        Df.Data shift_in -> do
+            modify \st -> st
+              { phase = next ShiftIn i $ Calculate 0 (fromSNat (SNat @(n - k))) 0
+              , row = row st <<+ shift_in
+              }
+            pure $ Consume shift_in
+    Calculate start end i -> do
+        row <- gets row
+        let (idx, x) = findMaxBetween start end row
+            start' = idx + 1
+            end' = end + 1
+        modify \st -> st
+            { curr = curr st <<+ x }
+        goto $ next (Calculate start' end') i Add
+        pure Wait
+    Add -> do
+        acc <- gets acc
+        curr <- gets curr
+        let (_, acc') = addBCD acc curr
+        modify \st -> st{ acc = acc' }
+        goto $ ShiftOut 0
+        pure Wait
+    ShiftOut i -> do
+        proceed <- wait out_ack $ goto $ next ShiftOut i (ShiftIn 0)
+        d <- gets $ leToPlus @1 @l head . acc
+        when proceed $ modify \st -> st{ acc = rotateLeftS (acc st) (SNat @1) }
+        pure $ Produce d
+  where
+    goto ph = modify \st -> st{ phase = ph }
+
+    wait ack act = do
+        s0 <- get
+        s <- act *> get
+        let (proceed, s') = case ack of
+                Ack True -> (True, s)
+                Ack False -> (False, s0)
+        put s'
+        pure proceed
+
+controller
+    :: forall dom. (HiddenClockResetEnable dom)
+    => forall n k l -> (KnownNat n, KnownNat k, KnownNat l, 1 <= n, 1 <= k, 1 <= l, k <= n, k <= l)
+    => Stream dom Digit Digit
+controller n k l (shift_in, out_ack) = (in_ack, shift_out)
+  where
+    (shift_out, in_ack) = mealySB (fmap lines . control) s0 (shift_in, out_ack)
+    s0 = St
+      { phase = ShiftIn 0
+      , row = repeat @n undefined
+      , curr = repeat @k undefined
+      , acc = repeat @l 0
+      }
+
+    lines = \case
+        Wait -> (Df.NoData, Ack False)
+        Consume d -> (Df.NoData, Ack True)
+        Produce d -> (Df.Data d, Ack False)
+
+data Control
+    = Wait
+    | Consume Digit
+    | Busy
+    | Produce Digit
 
 createDomain vSystem{vName="Dom100", vPeriod = hzToPeriod 100_000_000}
 
@@ -12,6 +142,6 @@ topEntity
     -> "RX"         ::: Signal Dom100 Bit
     -> "TX"         ::: Signal Dom100 Bit
 topEntity clk rst = withClockResetEnable clk rst enableGen $
-    \rx -> register 0 rx
+    serialize 9600 $ board 5 3 4
 
 makeTopEntity 'topEntity

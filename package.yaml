@@ -14,6 +14,12 @@ dependencies:
   
   - optparse-applicative
 
+  - mtl
+  - transformers
+
+  - clash-protocols
+  - clash-cores
+
 # Anything that Clash uses by default should go here
 default-extensions:
   - BinaryLiterals
