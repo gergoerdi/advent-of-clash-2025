@@ -1,6 +1,6 @@
 {-# LANGUAGE ApplicativeDo, RecordWildCards, BlockArguments, LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables, TypeApplications, RequiredTypeArguments #-}
-module Main where
+module AoC2025.P03.Main where
 
 import Clash.Prelude
 
