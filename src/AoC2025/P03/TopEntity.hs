@@ -14,6 +14,7 @@ import Data.Word (Word8)
 import Data.Char (ord, chr)
 import Control.Monad (when)
 import Control.Monad.State.Strict
+import Data.Ord (Down)
 
 import Protocols
 import qualified Protocols.Df as Df
@@ -59,7 +60,7 @@ showDigit d = fromIntegral d + ascii '0'
 data Phase n k l
     = ShiftIn (Index n)
     | Prepare (Index n) (Index n) (Index k)
-    | Calculate (Index n) (Index n) (Index k) (Index (CLog 2 n + 1))
+    | Calculate (Index n) (Index k) (Index (CLog 2 n + 1))
     | Add
     | ShiftOut (Index l)
     | ShiftOutNewline
@@ -68,7 +69,7 @@ data Phase n k l
 data St n k l = St
     { phase :: Phase n k l
     , row :: BCD n
-    , buf :: Vec n (Index n, Digit)
+    , buf :: Vec n (Bool, Digit, Down (Index n))
     , curr :: BCD k
     , acc :: BCD l
     }
@@ -87,24 +88,24 @@ control (shift_in, out_ack) = gets phase >>= \case
             pure $ Consume shift_in
     Prepare start end i -> do
         modify \st -> st
-            { phase = Calculate start end i 0
-            , buf = imap (,) (row st)
+            { phase = Calculate end i 0
+            , buf = imap (score start end) (row st)
             }
         pure Wait
-    Calculate start end i j -> do
+    Calculate end i j -> do
         case countSuccChecked j of
             Just j' -> do
                 modify \st -> st
-                    { buf = solveStep start end (buf st)
-                    , phase = Calculate start end i j'
+                    { buf = rollup max (buf st)
+                    , phase = Calculate end i j'
                     }
             Nothing -> do
                 buf <- gets buf
-                let (idx, x) = leToPlus @1 @n head buf
+                let (idx, x) = unscore $ leToPlus @1 @n head buf
                     start' = idx + 1
                     end' = end + 1
                 modify \st -> st
-                    { curr = replace i x (curr st)
+                    { curr = replace (resize i + fromSNat (SNat @(l - k)) :: Index l) x (curr st)
                     , phase = next (Prepare start' end') i Add
                     }
         pure Wait

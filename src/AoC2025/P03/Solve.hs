@@ -15,27 +15,23 @@ solve k xs = unfoldrI f (0, fromSNat (SNat @n))
       where
         (i, x) = findMaxBetween start end xs
 
-maxBy :: (a -> a -> Ordering) -> a -> a -> a
-maxBy cmp x y = case cmp x y of
-    LT -> y
-    _ -> x
-
 findMaxBetween :: forall n a. (Ord a, KnownNat n, 1 <= n) => Index n -> Index n -> Vec n a -> (Index n, a)
 findMaxBetween start end =
+    unscore .
     leToPlus @1 @n head .
-    iterateN (maxBound :: Index (CLog 2 n + 1)) (solveStep start end) .
-    imap (,)
+    iterateN (maxBound :: Index (CLog 2 n + 1)) (rollup max) .
+    imap (score start end)
   where
     iterateN :: forall k a. (KnownNat k) => Index k -> (a -> a) -> a -> a
     iterateN k f x = if k == 0 then x else iterateN (k - 1) f (f x)
 
-solveStep :: forall n a. (Ord a, KnownNat n, 1 <= n) => Index n -> Index n -> Vec n (Index n, a) -> Vec n (Index n, a)
-solveStep start end = rollup (maxBy (comparing rank))
+score :: (KnownNat n) => Index n -> Index n -> Index n -> a -> (Bool, a, Down (Index n))
+score start end = \i x -> (inside i, x, Down i)
   where
-    rank :: (Index n, a) -> (Bool, a, Down (Index n))
-    rank (i, x) = (inside i, x, Down i)
-
     inside i = i >= start && i <= end
+
+unscore :: (Bool, a, Down (Index n)) -> (Index n, a)
+unscore (_, x, Down i) = (i, x)
 
 rollup :: forall n a. (KnownNat n, 1 <= n) => (a -> a -> a) -> Vec n a -> Vec n a
 rollup f xs = map pos indicesI
