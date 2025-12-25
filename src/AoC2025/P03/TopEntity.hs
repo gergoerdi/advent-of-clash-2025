@@ -80,23 +80,21 @@ control (shift_in, out_ack) = gets phase >>= \case
         Df.Data shift_in -> do
             modify \st -> st
               { phase = next ShiftIn i $ Calculate 0 (fromSNat (SNat @(n - k))) 0
-              , row = row st <<+ shift_in
+              , row = replace i shift_in (row st)
               }
             pure $ Consume shift_in
     Calculate start end i -> do
         row <- gets row
+        -- let (idx, x) = (start + 1, 1)
         let (idx, x) = findMaxBetween start end row
             start' = idx + 1
             end' = end + 1
         modify \st -> st
-            { curr = curr st <<+ x }
+            { curr = replace i x (curr st) }
         goto $ next (Calculate start' end') i Add
         pure Wait
     Add -> do
-        acc <- gets acc
-        curr <- gets curr
-        let (_, acc') = addBCD acc curr
-        modify \st -> st{ acc = acc' }
+        modify \st -> st{ acc = addBCD (acc st) (curr st) }
         goto $ ShiftOut 0
         pure Wait
     ShiftOut i -> do
@@ -141,15 +139,15 @@ data Control
     | Busy
     | Produce Digit
 
-createDomain vSystem{vName="Dom100", vPeriod = hzToPeriod 100_000_000}
+createDomain vSystem{vName="Dom100", vPeriod = hzToPeriod 1_000_000}
 
 topEntity
-    :: "CLK_100MHZ" ::: Clock Dom100
+    :: "CLK_1MHZ" ::: Clock Dom100
     -> "RESET"      ::: Reset Dom100
     -> "RX"         ::: Signal Dom100 Bit
     -> "TX"         ::: Signal Dom100 Bit
 topEntity clk rst = withClockResetEnable clk rst enableGen $
-    serialize 9600 $ board 5 3 4
+    serialize 9600 $ board 100 12 20
 
 makeTopEntity 'topEntity
 

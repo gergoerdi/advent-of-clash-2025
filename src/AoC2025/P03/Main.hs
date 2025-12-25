@@ -65,7 +65,7 @@ main = do
             f solve' s prob = do
                 let result = solve' $ fromInput . fmap (fromIntegral . digitToInt) $ prob
                 when verbose $ printf "%s %d\n" prob (fromBCD result)
-                pure $ snd $ addBCD s result
+                pure $ addBCD s result
 
     problems <- lines <$> readFile inFile
     s <- foldM solveLine (repeat 0) problems
