@@ -11,12 +11,14 @@ import AoC2025.P03.BCD
 import AoC2025.P03.Solve
 
 import Data.Word (Word8)
-import Data.Char (ord)
+import Data.Char (ord, chr)
 import Control.Monad (when)
 import Control.Monad.State.Strict
 
 import Protocols
 import qualified Protocols.Df as Df
+
+import Protocols.Internal (simulateCSE)
 
 countSuccChecked :: (Counter a) => a -> Maybe a
 countSuccChecked x = case countSucc ((0 :: Unsigned 1), x) of
@@ -35,17 +37,21 @@ ascii c
 
 type Stream dom a b = (Signal dom (Df.Data a), Signal dom Ack) -> (Signal dom Ack, Signal dom (Df.Data b))
 
+type Valid n k l = (KnownNat n, KnownNat k, KnownNat l, 1 <= n, 1 <= k, 1 <= l, k <= l, k <= n)
+
 board
     :: (HiddenClockResetEnable dom)
-    => forall n k l -> (KnownNat n, KnownNat k, KnownNat l, 1 <= n, 1 <= k, 1 <= l, k <= l, k <= n)
+    => forall n k l -> Valid n k l
     => Circuit (Df dom Word8) (Df dom Word8)
 board n k l =
-    Df.map parseDigit |>
+    Df.mapMaybe parseDigit |>
     Circuit (controller n k l) |>
     Df.map showDigit
 
-parseDigit :: Word8 -> Digit
-parseDigit x = fromIntegral $ x - ascii '0'
+parseDigit :: Word8 -> Maybe Digit
+parseDigit x
+    | ascii '0' <= x && x <= ascii '9' = Just $ fromIntegral $ x - ascii '0'
+    | otherwise = Nothing
 
 showDigit :: Digit -> Word8
 showDigit d = fromIntegral d + ascii '0'
@@ -55,6 +61,7 @@ data Phase n k l
     | Calculate (Index n) (Index n) (Index k)
     | Add
     | ShiftOut (Index l)
+    | ShiftOutNewline
     deriving (Generic, NFDataX, Show)
 
 data St n k l = St
@@ -65,7 +72,7 @@ data St n k l = St
     }
     deriving (Generic, NFDataX, Show)
 
-control :: forall n k l. (KnownNat n, KnownNat k, KnownNat l, 1 <= n, 1 <= k, k <= n, k <= l, 1 <= l) => (Df.Data Digit, Ack) -> State (St n k l) Control
+control :: forall n k l. Valid n k l => (Df.Data Digit, Ack) -> State (St n k l) Control
 control (shift_in, out_ack) = gets phase >>= \case
     ShiftIn i -> case shift_in of
         Df.NoData -> do
@@ -111,7 +118,7 @@ control (shift_in, out_ack) = gets phase >>= \case
 
 controller
     :: forall dom. (HiddenClockResetEnable dom)
-    => forall n k l -> (KnownNat n, KnownNat k, KnownNat l, 1 <= n, 1 <= k, 1 <= l, k <= n, k <= l)
+    => forall n k l -> Valid n k l
     => Stream dom Digit Digit
 controller n k l (shift_in, out_ack) = (in_ack, shift_out)
   where
@@ -145,3 +152,9 @@ topEntity clk rst = withClockResetEnable clk rst enableGen $
     serialize 9600 $ board 5 3 4
 
 makeTopEntity 'topEntity
+
+sim_board :: forall n k l -> Valid n k l => String -> String
+sim_board n k l =
+    fmap (chr . fromIntegral) .
+    simulateCSE @System (exposeClockResetEnable $ board n k l) .
+    fmap ascii
