@@ -21,6 +21,9 @@ dependencies:
   - clash-cores
   - clash-format
 
+  - bytestring
+  - serialport
+
 # Anything that Clash uses by default should go here
 default-extensions:
   - BinaryLiterals
@@ -61,6 +64,10 @@ executables:
     source-dirs: src
     main: AoC2025.P03.Main
 
+  aoc2025-client:
+    source-dirs: src
+    main: AoC2025.Client
+      
   aoc2025-shake:
     source-dirs: .
     main: Shakefile.hs
