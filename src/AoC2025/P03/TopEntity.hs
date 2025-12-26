@@ -7,14 +7,11 @@ import Clash.Annotations.TH
 import Clash.Class.Counter
 
 import AoC2025.Serial
-import AoC2025.P03.BCD
-import AoC2025.P03.Solve
+import AoC2025.P03.BCD (Digit)
+import AoC2025.P03.Control
 
 import Data.Word (Word8)
-import Data.Char (ord, chr)
-import Control.Monad (when)
-import Control.Monad.State.Strict
-import Data.Ord (Down)
+import Data.Char (chr)
 
 import Protocols
 import qualified Protocols.Df as Df
@@ -25,17 +22,13 @@ import Protocols.Internal (simulateCSE)
 next :: (Counter a) => (a -> s) -> a -> s -> s
 next cons i after = maybe after cons $ countSuccChecked i
 
-type Stream dom a b = (Signal dom (Df.Data a), Signal dom Ack) -> (Signal dom Ack, Signal dom (Df.Data b))
-
-type Valid n k m = (KnownNat n, KnownNat k, KnownNat m, 1 <= n, 1 <= k, 1 <= m, k <= m, k <= n)
-
 board
     :: (HiddenClockResetEnable dom)
     => forall n k m -> Valid n k m
     => Circuit (Df dom Word8) (Df dom Word8)
 board n k m =
     Df.mapMaybe parseDigit |>
-    Circuit (controller n k m) |>
+    controller n k m |>
     Df.map (maybe (ascii '#') showDigit) |>
     format (loop $ skip (ascii '0') <> delimit (ascii '#') print <> str "\r\n")
 
@@ -46,117 +39,6 @@ parseDigit x
 
 showDigit :: Digit -> Word8
 showDigit d = fromIntegral d + ascii '0'
-
-data Phase n k m
-    = ShiftIn (Index n)
-    | Prepare (Index n) (Index n) (Index k)
-    | Calculate (Index n) (Index k) (Index (CLog 2 n + 1))
-    | Add Bit (Index m)
-    | ShiftOut (Index m)
-    | ShiftOutEOL
-    deriving (Generic, NFDataX, Show)
-
-data St n k m = St
-    { phase :: Phase n k m
-    , row :: BCD n
-    , buf :: Vec n (Bool, Digit, Down (Index n))
-    , curr :: BCD m
-    , acc :: BCD m
-    }
-    deriving (Generic, NFDataX, Show)
-
-control :: forall n k m. Valid n k m => (Df.Data Digit, Ack) -> State (St n k m) Control
-control (shift_in, out_ack) = gets phase >>= \case
-    ShiftIn i -> case shift_in of
-        Df.NoData -> do
-            pure Wait
-        Df.Data shift_in -> do
-            modify \st -> st
-              { phase = next ShiftIn i $ Prepare 0 (fromSNat (SNat @(n - k))) 0
-              , row = replace i shift_in (row st)
-              }
-            pure $ Consume shift_in
-    Prepare start end i -> do
-        modify \st -> st
-            { phase = Calculate end i 0
-            , buf = imap (score start end) (row st)
-            }
-        pure Wait
-    Calculate end i j -> do
-        case countSuccChecked j of
-            Just j' -> do
-                modify \st -> st
-                    { buf = rollup max (buf st)
-                    , phase = Calculate end i j'
-                    }
-            Nothing -> do
-                buf <- gets buf
-                let (idx, x) = unscore $ leToPlus @1 @n head buf
-                    start' = idx + 1
-                    end' = end + 1
-                modify \st -> st
-                    { curr = replace (resize i + fromSNat (SNat @(m - k)) :: Index m) x (curr st)
-                    , phase = next (Prepare start' end') i (Add 0 0)
-                    }
-        pure Wait
-    Add cin i -> do
-        d1 <- gets $ leToPlus @1 @m last . acc
-        d2 <- gets $ leToPlus @1 @m last . curr
-        let (cout, d) = addDigit cin (d1, d2)
-        modify \st -> st
-            { acc = replace (maxBound :: Index m) d (acc st) `rotateRightS` SNat @1
-            , curr = 0 +>> curr st
-            , phase = next (Add cout) i $ ShiftOut 0
-            }
-        pure Wait
-    ShiftOut i -> do
-        d <- gets $ leToPlus @1 @m head . acc
-        wait out_ack do
-            modify \st -> st
-              { phase = next ShiftOut i ShiftOutEOL
-              , acc = rotateLeftS (acc st) (SNat @1)
-              }
-        pure $ Produce (Just d)
-    ShiftOutEOL -> do
-        wait out_ack $ goto $ ShiftIn 0
-        pure $ Produce Nothing
-  where
-    goto ph = modify \st -> st{ phase = ph }
-
-    wait ack act = do
-        s0 <- get
-        s <- act *> get
-        let (proceed, s') = case ack of
-                Ack True -> (True, s)
-                Ack False -> (False, s0)
-        put s'
-        pure proceed
-
-controller
-    :: forall dom. (HiddenClockResetEnable dom)
-    => forall n k m -> Valid n k m
-    => Stream dom Digit (Maybe Digit)
-controller n k m (shift_in, out_ack) = (in_ack, shift_out)
-  where
-    (shift_out, in_ack) = mealySB (fmap lines . control) s0 (shift_in, out_ack)
-    s0 = St
-      { phase = ShiftIn @n @k @m 0
-      , row = repeat undefined
-      , buf = repeat undefined
-      , curr = repeat 0
-      , acc = repeat 0
-      }
-
-    lines = \case
-        Wait -> (Df.NoData, Ack False)
-        Consume d -> (Df.NoData, Ack True)
-        Produce d -> (Df.Data d, Ack False)
-
-data Control
-    = Wait
-    | Consume Digit
-    | Busy
-    | Produce (Maybe Digit)
 
 createDomain vSystem{vName="Dom100", vPeriod = hzToPeriod 100_000_000}
 
