@@ -2,7 +2,7 @@
 {-# LANGUAGE RequiredTypeArguments #-}
 module AoC2025.P03.TopEntity where
 
-import Clash.Prelude
+import Clash.Prelude hiding (print)
 import Clash.Annotations.TH
 import Clash.Class.Counter
 
@@ -18,23 +18,12 @@ import Data.Ord (Down)
 
 import Protocols
 import qualified Protocols.Df as Df
+import Clash.Format
 
 import Protocols.Internal (simulateCSE)
 
-countSuccChecked :: (Counter a) => a -> Maybe a
-countSuccChecked x = case countSucc ((0 :: Unsigned 1), x) of
-    (0, x') -> Just x'
-    (1, _) -> Nothing
-
 next :: (Counter a) => (a -> s) -> a -> s -> s
 next cons i after = maybe after cons $ countSuccChecked i
-
-ascii :: Char -> Word8
-ascii c
-    | code <= 0x7f = fromIntegral code
-    | otherwise = clashCompileError "Not an ASCII code point"
-  where
-    code = ord c
 
 type Stream dom a b = (Signal dom (Df.Data a), Signal dom Ack) -> (Signal dom Ack, Signal dom (Df.Data b))
 
@@ -47,7 +36,8 @@ board
 board n k m =
     Df.mapMaybe parseDigit |>
     Circuit (controller n k m) |>
-    Df.map showDigit
+    Df.map (maybe (ascii '#') showDigit) |>
+    format (loop $ skip (ascii '0') <> delimit (ascii '#') print <> str "\r\n")
 
 parseDigit :: Word8 -> Maybe Digit
 parseDigit x
@@ -63,7 +53,7 @@ data Phase n k m
     | Calculate (Index n) (Index k) (Index (CLog 2 n + 1))
     | Add Bit (Index m)
     | ShiftOut (Index m)
-    | ShiftOutNewline
+    | ShiftOutEOL
     deriving (Generic, NFDataX, Show)
 
 data St n k m = St
@@ -120,10 +110,16 @@ control (shift_in, out_ack) = gets phase >>= \case
             }
         pure Wait
     ShiftOut i -> do
-        proceed <- wait out_ack $ goto $ next ShiftOut i (ShiftIn 0)
         d <- gets $ leToPlus @1 @m head . acc
-        when proceed $ modify \st -> st{ acc = rotateLeftS (acc st) (SNat @1) }
-        pure $ Produce d
+        wait out_ack do
+            modify \st -> st
+              { phase = next ShiftOut i ShiftOutEOL
+              , acc = rotateLeftS (acc st) (SNat @1)
+              }
+        pure $ Produce (Just d)
+    ShiftOutEOL -> do
+        wait out_ack $ goto $ ShiftIn 0
+        pure $ Produce Nothing
   where
     goto ph = modify \st -> st{ phase = ph }
 
@@ -139,7 +135,7 @@ control (shift_in, out_ack) = gets phase >>= \case
 controller
     :: forall dom. (HiddenClockResetEnable dom)
     => forall n k m -> Valid n k m
-    => Stream dom Digit Digit
+    => Stream dom Digit (Maybe Digit)
 controller n k m (shift_in, out_ack) = (in_ack, shift_out)
   where
     (shift_out, in_ack) = mealySB (fmap lines . control) s0 (shift_in, out_ack)
@@ -160,7 +156,7 @@ data Control
     = Wait
     | Consume Digit
     | Busy
-    | Produce Digit
+    | Produce (Maybe Digit)
 
 createDomain vSystem{vName="Dom100", vPeriod = hzToPeriod 100_000_000}
 
