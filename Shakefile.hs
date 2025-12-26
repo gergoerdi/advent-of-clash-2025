@@ -38,15 +38,17 @@ main = shakeArgs shakeOptions{ shakeFiles = outDir } do
             yosys tool args = cmd_ (EchoStdout False) =<< toolchain "YOSYS" tool args
 
         alwaysRerun
-        yosys "ecppll"
-          [ "--module", "pll"
-          , "--clkin", "25"
-          , "--clkin_name", "clkin_25mhz"
-          , "--clkout0", "100"
-          , "--clkout0_name", "clkout_100mhz"
-          , "--highres"
-          , "-f", out
-          ]
+        withTempFileWithin (takeDirectory out) \out' -> do
+            yosys "ecppll"
+                [ "--module", "pll"
+                , "--clkin", "25"
+                , "--clkin_name", "clkin_25mhz"
+                , "--clkout0", "100"
+                , "--clkout0_name", "clkout_100mhz"
+                , "--highres"
+                , "-f", out'
+                ]
+            copyFileChanged out' out
 
     for_ problems \problem -> do
         let mod = "AoC2025." <> problem <> ".TopEntity"
