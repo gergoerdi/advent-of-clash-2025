@@ -61,7 +61,7 @@ data Phase n k l
     = ShiftIn (Index n)
     | Prepare (Index n) (Index n) (Index k)
     | Calculate (Index n) (Index k) (Index (CLog 2 n + 1))
-    | Add
+    | Add Bit (Index l)
     | ShiftOut (Index l)
     | ShiftOutNewline
     deriving (Generic, NFDataX, Show)
@@ -70,7 +70,7 @@ data St n k l = St
     { phase :: Phase n k l
     , row :: BCD n
     , buf :: Vec n (Bool, Digit, Down (Index n))
-    , curr :: BCD k
+    , curr :: BCD l
     , acc :: BCD l
     }
     deriving (Generic, NFDataX, Show)
@@ -106,12 +106,18 @@ control (shift_in, out_ack) = gets phase >>= \case
                     end' = end + 1
                 modify \st -> st
                     { curr = replace (resize i + fromSNat (SNat @(l - k)) :: Index l) x (curr st)
-                    , phase = next (Prepare start' end') i Add
+                    , phase = next (Prepare start' end') i (Add 0 0)
                     }
         pure Wait
-    Add -> do
-        modify \st -> st{ acc = addBCD (acc st) (curr st) }
-        goto $ ShiftOut 0
+    Add cin i -> do
+        d1 <- gets $ leToPlus @1 @l last . acc
+        d2 <- gets $ leToPlus @1 @l last . curr
+        let (cout, d) = addDigit cin (d1, d2)
+        modify \st -> st
+            { acc = replace (maxBound :: Index l) d (acc st) `rotateRightS` SNat @1
+            , curr = 0 +>> curr st
+            , phase = next (Add cout) i $ ShiftOut 0
+            }
         pure Wait
     ShiftOut i -> do
         proceed <- wait out_ack $ goto $ next ShiftOut i (ShiftIn 0)
@@ -138,11 +144,11 @@ controller n k l (shift_in, out_ack) = (in_ack, shift_out)
   where
     (shift_out, in_ack) = mealySB (fmap lines . control) s0 (shift_in, out_ack)
     s0 = St
-      { phase = ShiftIn 0
-      , row = repeat @n undefined
-      , buf = repeat @n undefined
-      , curr = repeat @k undefined
-      , acc = repeat @l 0
+      { phase = ShiftIn @n @k @l 0
+      , row = repeat undefined
+      , buf = repeat undefined
+      , curr = repeat 0
+      , acc = repeat 0
       }
 
     lines = \case
