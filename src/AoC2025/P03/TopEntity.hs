@@ -38,15 +38,15 @@ ascii c
 
 type Stream dom a b = (Signal dom (Df.Data a), Signal dom Ack) -> (Signal dom Ack, Signal dom (Df.Data b))
 
-type Valid n k l = (KnownNat n, KnownNat k, KnownNat l, 1 <= n, 1 <= k, 1 <= l, k <= l, k <= n)
+type Valid n k m = (KnownNat n, KnownNat k, KnownNat m, 1 <= n, 1 <= k, 1 <= m, k <= m, k <= n)
 
 board
     :: (HiddenClockResetEnable dom)
-    => forall n k l -> Valid n k l
+    => forall n k m -> Valid n k m
     => Circuit (Df dom Word8) (Df dom Word8)
-board n k l =
+board n k m =
     Df.mapMaybe parseDigit |>
-    Circuit (controller n k l) |>
+    Circuit (controller n k m) |>
     Df.map showDigit
 
 parseDigit :: Word8 -> Maybe Digit
@@ -57,25 +57,25 @@ parseDigit x
 showDigit :: Digit -> Word8
 showDigit d = fromIntegral d + ascii '0'
 
-data Phase n k l
+data Phase n k m
     = ShiftIn (Index n)
     | Prepare (Index n) (Index n) (Index k)
     | Calculate (Index n) (Index k) (Index (CLog 2 n + 1))
-    | Add Bit (Index l)
-    | ShiftOut (Index l)
+    | Add Bit (Index m)
+    | ShiftOut (Index m)
     | ShiftOutNewline
     deriving (Generic, NFDataX, Show)
 
-data St n k l = St
-    { phase :: Phase n k l
+data St n k m = St
+    { phase :: Phase n k m
     , row :: BCD n
     , buf :: Vec n (Bool, Digit, Down (Index n))
-    , curr :: BCD l
-    , acc :: BCD l
+    , curr :: BCD m
+    , acc :: BCD m
     }
     deriving (Generic, NFDataX, Show)
 
-control :: forall n k l. Valid n k l => (Df.Data Digit, Ack) -> State (St n k l) Control
+control :: forall n k m. Valid n k m => (Df.Data Digit, Ack) -> State (St n k m) Control
 control (shift_in, out_ack) = gets phase >>= \case
     ShiftIn i -> case shift_in of
         Df.NoData -> do
@@ -105,23 +105,23 @@ control (shift_in, out_ack) = gets phase >>= \case
                     start' = idx + 1
                     end' = end + 1
                 modify \st -> st
-                    { curr = replace (resize i + fromSNat (SNat @(l - k)) :: Index l) x (curr st)
+                    { curr = replace (resize i + fromSNat (SNat @(m - k)) :: Index m) x (curr st)
                     , phase = next (Prepare start' end') i (Add 0 0)
                     }
         pure Wait
     Add cin i -> do
-        d1 <- gets $ leToPlus @1 @l last . acc
-        d2 <- gets $ leToPlus @1 @l last . curr
+        d1 <- gets $ leToPlus @1 @m last . acc
+        d2 <- gets $ leToPlus @1 @m last . curr
         let (cout, d) = addDigit cin (d1, d2)
         modify \st -> st
-            { acc = replace (maxBound :: Index l) d (acc st) `rotateRightS` SNat @1
+            { acc = replace (maxBound :: Index m) d (acc st) `rotateRightS` SNat @1
             , curr = 0 +>> curr st
             , phase = next (Add cout) i $ ShiftOut 0
             }
         pure Wait
     ShiftOut i -> do
         proceed <- wait out_ack $ goto $ next ShiftOut i (ShiftIn 0)
-        d <- gets $ leToPlus @1 @l head . acc
+        d <- gets $ leToPlus @1 @m head . acc
         when proceed $ modify \st -> st{ acc = rotateLeftS (acc st) (SNat @1) }
         pure $ Produce d
   where
@@ -138,13 +138,13 @@ control (shift_in, out_ack) = gets phase >>= \case
 
 controller
     :: forall dom. (HiddenClockResetEnable dom)
-    => forall n k l -> Valid n k l
+    => forall n k m -> Valid n k m
     => Stream dom Digit Digit
-controller n k l (shift_in, out_ack) = (in_ack, shift_out)
+controller n k m (shift_in, out_ack) = (in_ack, shift_out)
   where
     (shift_out, in_ack) = mealySB (fmap lines . control) s0 (shift_in, out_ack)
     s0 = St
-      { phase = ShiftIn @n @k @l 0
+      { phase = ShiftIn @n @k @m 0
       , row = repeat undefined
       , buf = repeat undefined
       , curr = repeat 0
