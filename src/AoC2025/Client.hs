@@ -2,19 +2,20 @@
 
 {-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE BlockArguments, ApplicativeDo, RecordWildCards
-#-}
+{-# LANGUAGE BlockArguments, ApplicativeDo, RecordWildCards, NumericUnderscores #-}
 
 module AoC2025.Client where
 
-import Prelude
+import AoC2025.Serial (SerialRate)
+
+import Clash.Prelude
 import Control.Monad (unless)
 import Data.Foldable (for_)
-
 import Data.ByteString qualified as BS
 import System.Hardware.Serialport qualified as S
 import Clash.Format (ascii)
 import Options.Applicative
+import Text.Printf
 
 data Options = Options
     { inFile :: FilePath
@@ -43,7 +44,9 @@ main = do
 
     let settings = S.defaultSerialSettings
           { S.timeout = 60
-          , S.commSpeed = S.CS115200
+          , S.commSpeed = case snatToNatural (SNat @SerialRate) of
+                  115_200 -> S.CS115200
+                  rate -> error $ printf "Invalid serial data rate: %d\n" rate
           }
 
     inputs <- BS.split (ascii '\n') <$> BS.readFile inFile

@@ -1,4 +1,4 @@
-{-# LANGUAGE BlockArguments, TupleSections #-}
+{-# LANGUAGE BlockArguments, TupleSections, NumericUnderscores #-}
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE RequiredTypeArguments #-}
 {-# OPTIONS -fplugin=Protocols.Plugin #-}
@@ -9,6 +9,8 @@ import Clash.Prelude hiding (lift)
 import Protocols
 import qualified Protocols.Df as Df
 import Clash.Cores.UART(uart, ValidBaud)
+
+type SerialRate = 115_200
 
 -- From git@github.com:bittide/bittide-hardware.git
 uartDf
