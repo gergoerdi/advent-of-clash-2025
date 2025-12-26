@@ -44,6 +44,7 @@ main = shakeArgs shakeOptions{ shakeFiles = outDir } do
           , "--clkin_name", "clkin_25mhz"
           , "--clkout0", "100"
           , "--clkout0_name", "clkout_100mhz"
+          , "--highres"
           , "-f", out
           ]
 

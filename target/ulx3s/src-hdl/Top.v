@@ -8,24 +8,18 @@ module Top (input wire  clk_25mhz,
    // Tie gpio0 high, this keeps the board from rebooting
    assign wifi_gpio0 = 1'b1;
 
-   wire CLK_100MHZ, CLK_250MHZ;
-   wire reset;
+   wire                 clk_100mhz;
+   wire                 reset;
    
    pll u_pll(
        .clkin_25mhz(clk_25mhz),
-       .clkout_100mhz(CLK_100MHZ),
+       .clkout_100mhz(clk_100mhz),
        .locked(reset)      
        );
 
-   // // A reset line that goes low after 16 ticks
-   // reg [2:0]                  reset_cnt = 0;
-   // wire                       reset = ~reset_cnt[2];
-   // always @(posedge clk_25mhz)
-   //   if (reset) reset_cnt <= reset_cnt + 1;
-
   topEntity u_topEntity
-    (.CLK_100MHZ(CLK_100MHZ),
-     .RESET(reset),
+    (.CLK_100MHZ(clk_100mhz),
+     .RESET(!reset),
      .RX(ftdi_txd),
      .TX(ftdi_rxd)
      );
