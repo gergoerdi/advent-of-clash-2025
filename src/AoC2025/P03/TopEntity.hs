@@ -170,7 +170,7 @@ topEntity
     -> "RX"         ::: Signal Dom100 Bit
     -> "TX"         ::: Signal Dom100 Bit
 topEntity clk rst = withClockResetEnable clk rst enableGen $
-    serialize 9600 $ board 100 12 20
+    serialize 9600 $ board 100 12 15
 
 makeTopEntity 'topEntity
 
