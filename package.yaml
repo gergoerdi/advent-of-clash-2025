@@ -1,8 +1,11 @@
 name: aoc2025
 author: Gergő Érdi <gergo@erdi.hu>
 version: 1.0.0
-category: acme
-license: MIT
+category: hardware, acme
+license: GPL-3.0-only
+
+extra-source-files:
+    README.md
 
 dependencies:
   - base

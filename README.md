@@ -1,0 +1,75 @@
+Advent of Clash 2025
+====================
+
+This repository contains FPGA designs that solve the problems from
+[Advent of Code 2025], written in the hardware description language
+[Clash]. Currently, only contains code for day 3.
+
+I was heavily inspired by [Tristan de Cacqueray's great blog post][aof]
+where he explains in detail not just his solutions, but also the Clash
+basics needed to understand what's going on. If you've read his post,
+you should be able to understand this repository as well.
+
+Input and output
+----------------
+
+Each solution is a separate FPGA configuration that communicates with
+the outside world with a serial link, at a rate of 115,200 baud using
+8 data bits. There's a client program included for uploading the
+original AoC inputs, but you can basically just copy-paste them into a
+serial terminal. The result is sent back over serial in human-readable
+format.
+
+Build system
+------------
+
+I've only tested it on real hardware with an [ULX3S], but there are
+Shake rules included for the [Nexys A7] board as well. To synthesize
+the solution design for a given problem, e.g. problem 03, on the
+ULX3S, run the following command:
+
+```
+./mk P03:ulx3s-85f:bitfile
+```
+
+There's also a build rule for uploading the resulting bitfile to the
+device using [`fujprog`]:
+
+```
+./mk P03:ulx3s-85f:upload
+```
+
+
+Day #3: Lobby
+-------------
+
+For [day 3], we are given a sequence of length _n_ and have to find a
+subsequence of length _k_ that is maximal by the lexicographic
+ordering. The choice of _n_ and _k_ is baked in at synthesis time.
+
+Because the input has just _n = 100_ elements, we can keep the whole
+thing in a register array.  We can then find the maximum element in
+the array in _log₂ n_ cycles by repeatedly overwriting the _iᵗʰ_
+element with the maximum of the _2iᵗʰ_ and _(2i+1)ᵗʰ_ elements. We
+repeat this _k_ times, each time only looking at elements after the
+previous maximum. After all _k_ digits are found, the result is added
+to a running total in [BCD], and that running total is emitted through
+the serial output after every line.
+
+I didn't really bother making the BCD add operation use as much
+resource as available; we simply do it one digit at a time. This could
+be sped up relatively a lot by doing as many digits as fits into the timing
+schedule, but in absolute terms it's still just 15 cycles for each
+input line; serial communication is much slower.
+
+Overall, with _n = 100_, _k = 12_ and a running sum of 15 digits, on
+the ULX3S the toolchain reports a maximum frequency of 119 MHz. 
+
+[Advent of Code 2025]: https://adventofcode.com/2025
+[Clash]: https://clash-lang.org/
+[aof]: https://midirus.com/blog/advent-of-fpga
+[Day 3]: https://adventofcode.com/2025/day/3
+[ULX3S]: https://radiona.org/ulx3s/
+[Nexys A7]: https://digilent.com/reference/programmable-logic/nexys-a7/start
+[BCD]: https://en.wikipedia.org/wiki/Binary-coded_decimal
+[`fujprog`]: https://github.com/kost/fujprog
