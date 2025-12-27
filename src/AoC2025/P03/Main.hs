@@ -9,7 +9,7 @@ import AoC2025.P03.BCD
 
 import Options.Applicative
 import qualified Data.List as L
-import Data.Char (digitToInt, intToDigit)
+import Data.Char (digitToInt)
 import Text.Printf
 import Control.Monad (when, foldM)
 

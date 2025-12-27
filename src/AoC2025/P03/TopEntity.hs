@@ -1,6 +1,6 @@
 {-# LANGUAGE NumericUnderscores, LambdaCase, BlockArguments #-}
 {-# LANGUAGE RequiredTypeArguments #-}
-module AoC2025.P03.TopEntity where
+module AoC2025.P03.TopEntity (board, topEntity, Valid) where
 
 import Clash.Prelude hiding (print)
 import Clash.Annotations.TH
