@@ -7,19 +7,24 @@ import Control.Monad.State.Strict
 import qualified Data.List as L
 import Control.Monad (zipWithM)
 
-propagateCell :: (Num a, Eq a) => Bool -> a -> State (a, a) (Bool, a)
+propagateCell :: (Num a, Eq a, Num cnt) => Bool -> a -> State (a, a, cnt) a
 propagateCell splitter above = do
-    (fromLeft1, fromLeft2) <- get
+    (fromLeft1, fromLeft2, cnt) <- get
     let hit = above /= 0 && splitter
-    put (fromLeft2 + if not hit then above else 0, if hit then above else 0)
+    put (fromLeft2 + gate (not hit) above, gate hit above, cnt + gate hit 1)
     let below = fromLeft1 + if hit then above else 0
-    pure (hit, below)
-
-propagateRow :: (Num a, Eq a) => [Bool] -> [a] -> (Int, [a])
-propagateRow row aboves = evalState `flip` (0, 0) $ do
-    (hits, belows) <- L.unzip <$> zipWithM propagateCell row aboves
-    (fromLeft1, _) <- get
-    pure (count hits, L.tail $ belows <> [fromLeft1])
+    pure below
   where
-    count :: [Bool] -> Int
-    count = L.length . filter id
+    gate b x = if b then x else 0
+
+step :: (KnownNat n, 1 <= n, Num a, Eq a) => Bool -> Vec n a -> State (a, a, Int) (Vec n a)
+step splitter aboves = do
+    rec let (aboves', above :> Nil) = shiftInAtN aboves (below :> Nil)
+        below <- propagateCell splitter above
+    pure aboves'
+
+propagateRow :: (Num a, Eq a, Num cnt) => [Bool] -> [a] -> (cnt, [a])
+propagateRow row aboves = evalState `flip` (0, 0, 0) $ do
+    belows <- zipWithM propagateCell row aboves
+    (fromLeft1, _, hits) <- get
+    pure (hits, L.tail $ belows <> [fromLeft1])
