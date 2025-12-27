@@ -5,7 +5,7 @@ module AoC2025.P03.Control (Valid, controller) where
 import Clash.Prelude
 import Clash.Class.Counter
 
-import AoC2025.P03.BCD
+import AoC2025.BCD
 import AoC2025.P03.Solve
 
 import Control.Monad.State.Strict

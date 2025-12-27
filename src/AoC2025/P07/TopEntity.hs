@@ -1,6 +1,6 @@
 {-# LANGUAGE NumericUnderscores, LambdaCase, BlockArguments #-}
 {-# LANGUAGE RequiredTypeArguments #-}
-module AoC2025.P03.TopEntity (board, topEntity, Valid) where
+module AoC2025.P07.TopEntity (board, topEntity, Valid) where
 
 import Clash.Prelude hiding (print)
 import Clash.Annotations.TH
@@ -8,10 +8,9 @@ import Clash.Class.Counter
 
 import AoC2025.Serial
 import AoC2025.BCD (Digit)
-import AoC2025.P03.Control
+import AoC2025.P07.Control
 
 import Data.Word (Word8)
-import Data.Char (chr)
 
 import Protocols
 import qualified Protocols.Df as Df
@@ -22,18 +21,25 @@ next cons i after = maybe after cons $ countSuccChecked i
 
 board
     :: (HiddenClockResetEnable dom)
-    => forall n k m -> Valid n k m
+    => forall n k -> Valid n k
     => Circuit (Df dom Word8) (Df dom Word8)
-board n k m =
-    Df.mapMaybe parseDigit |>
-    controller n k m |>
+board n k =
+    Df.mapMaybe parse |>
+    controller n k |>
     Df.map (maybe (ascii '#') showDigit) |>
-    format (loop $ skip (ascii '0') <> delimit (ascii '#') print <> str "\r\n")
+    format (loop $ number <> str " " <> number <> str "\r\n")
+  where
+    parse c
+        | c `elem` (ascii <$> ['S', '^'])
+        = Just True
 
-parseDigit :: Word8 -> Maybe Digit
-parseDigit x
-    | ascii '0' <= x && x <= ascii '9' = Just $ fromIntegral $ x - ascii '0'
-    | otherwise = Nothing
+        | c == ascii '.'
+        = Just False
+
+        | otherwise
+        = Nothing
+
+    number = skip (ascii '0') <> delimit (ascii '#') print
 
 showDigit :: Digit -> Word8
 showDigit d = fromIntegral d + ascii '0'
@@ -46,6 +52,6 @@ topEntity
     -> "RX"         ::: Signal Dom100 Bit
     -> "TX"         ::: Signal Dom100 Bit
 topEntity clk rst = withClockResetEnable clk rst enableGen $
-    serialize SerialRate $ board 100 12 15
+    serialize SerialRate $ board 141 64
 
 makeTopEntity 'topEntity

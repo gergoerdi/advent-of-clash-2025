@@ -6,6 +6,7 @@ import Clash.Prelude
 import Control.Monad.State.Strict
 import qualified Data.List as L
 import Control.Monad (zipWithM)
+import Data.Word
 
 propagateCell :: (Num a, Eq a, Num cnt) => Bool -> a -> State (a, a, cnt) a
 propagateCell splitter above = do
@@ -17,7 +18,7 @@ propagateCell splitter above = do
   where
     gate b x = if b then x else 0
 
-step :: (KnownNat n, 1 <= n, Num a, Eq a) => Bool -> Vec n a -> State (a, a, Int) (Vec n a)
+step :: (KnownNat n, 1 <= n, Num a, Eq a) => Bool -> Vec n a -> State (a, a, Word32) (Vec n a)
 step splitter aboves = do
     rec let (aboves', above :> Nil) = shiftInAtN aboves (below :> Nil)
         below <- propagateCell splitter above

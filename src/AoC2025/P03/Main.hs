@@ -5,8 +5,8 @@ module AoC2025.P03.Main where
 import Clash.Prelude
 
 import AoC2025.CLI
+import AoC2025.BCD
 import AoC2025.P03.Solve
-import AoC2025.P03.BCD
 
 import qualified Data.List as L
 import Data.Char (digitToInt)

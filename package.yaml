@@ -75,6 +75,10 @@ executables:
     source-dirs: src
     main: AoC2025.P07.Main
     
+  p07-sim:
+    source-dirs: src
+    main: AoC2025.P07.Sim
+    
   aoc2025-client:
     source-dirs: src
     main: AoC2025.Client
