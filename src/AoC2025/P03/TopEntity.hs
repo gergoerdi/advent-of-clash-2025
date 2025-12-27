@@ -17,8 +17,6 @@ import Protocols
 import qualified Protocols.Df as Df
 import Clash.Format
 
-import Protocols.Internal (simulateCSE)
-
 next :: (Counter a) => (a -> s) -> a -> s -> s
 next cons i after = maybe after cons $ countSuccChecked i
 
@@ -51,9 +49,3 @@ topEntity clk rst = withClockResetEnable clk rst enableGen $
     serialize SerialRate $ board 100 12 15
 
 makeTopEntity 'topEntity
-
-sim_board :: forall n k l -> Valid n k l => String -> String
-sim_board n k l =
-    fmap (chr . fromIntegral) .
-    simulateCSE @System (exposeClockResetEnable $ board n k l) .
-    fmap ascii
