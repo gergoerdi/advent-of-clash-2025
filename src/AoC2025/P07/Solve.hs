@@ -11,6 +11,8 @@ import Data.Word
 data RowSt a cnt = RowSt
     { buffer :: Vec 2 a
     , hitCount :: cnt
+    , isFirst :: Bool
+    , timelineSum :: a
     }
     deriving (Generic, NFDataX, Show)
 
@@ -18,12 +20,14 @@ propagateCell :: (Num a, Eq a, Num cnt) => Bool -> a -> State (RowSt a cnt) a
 propagateCell splitter above = do
     let hit = above /= 0 && splitter
 
-    fromLeft1 <- state \RowSt{ buffer = fromLeft1 :> fromLeft2 :> Nil, .. } ->
-        let buffer' = fromLeft2 + gate (not hit) above :> gate hit above :> Nil
-            hitCount' = hitCount + gate hit 1
-        in (fromLeft1, RowSt{ buffer = buffer', hitCount = hitCount' })
-
+    ~(RowSt{ buffer = fromLeft1 :> fromLeft2 :> Nil, .. }) <- get
     let below = fromLeft1 + if hit then above else 0
+    put $ RowSt
+        { buffer = fromLeft2 + gate (not hit) above :> gate hit above :> Nil
+        , hitCount = hitCount + gate hit 1
+        , isFirst = False
+        , timelineSum = timelineSum + gate (not isFirst) below
+        }
     pure below
   where
     gate b x = if b then x else 0
@@ -37,12 +41,16 @@ step splitter aboves = do
 newRow :: (Num a) => RowSt a cnt -> RowSt a cnt
 newRow st = st
     { buffer = repeat 0
+    , timelineSum = 0
+    , isFirst = True
     }
 
 initRow :: (Num a, Num cnt) => RowSt a cnt
 initRow = RowSt
     { buffer = repeat 0
     , hitCount = 0
+    , timelineSum = 0
+    , isFirst = True
     }
 
 propagateRow :: (Num a, Eq a, Num cnt) => [Bool] -> [a] -> (cnt, [a])

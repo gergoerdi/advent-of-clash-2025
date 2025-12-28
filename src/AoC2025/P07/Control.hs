@@ -31,8 +31,8 @@ data Input n
 data Output k
     = HitsDigit (Index (BCDSize k))
     | HitsEOL
-    | WorldsDigit (Index (BCDSize k))
-    | WorldsEOL
+    | TimelinesDigit (Index (BCDSize k))
+    | TimelinesEOL
     deriving (Generic, NFDataX, Show)
 
 data Phase n k
@@ -46,7 +46,7 @@ data St n k = St
     , row :: Vec n (Unsigned k)
     , rowState :: RowSt (Unsigned k) (Unsigned k)
     , hits :: BCD (BCDSize k)
-    , worlds :: BCD (BCDSize k)
+    , timelines :: BCD (BCDSize k)
     }
     deriving (Generic, NFDataX, Show)
 
@@ -84,15 +84,13 @@ control (in_data, out_ack) = gets phase >>= {- (\x -> traceShowM x *> pure x) >>
     FinishLine -> do
         fromLeft1 <- gets $ head . buffer . rowState
         hits <- gets $ hitCount . rowState
-        row <- gets row
-        let row' = row <<+ fromLeft1
-        let worlds = sum row'
+        timelines <- gets $ (+ fromLeft1) . timelineSum . rowState
         modify \st -> st
             { phase = Write $ HitsDigit 0
-            , row = row'
+            , row = row st <<+ fromLeft1
             , rowState = newRow (rowState st)
             , hits = toBCD hits
-            , worlds = toBCD worlds
+            , timelines = toBCD timelines
             }
         pure Busy
 
@@ -107,19 +105,19 @@ control (in_data, out_ack) = gets phase >>= {- (\x -> traceShowM x *> pure x) >>
 
     Write HitsEOL -> do
         wait out_ack do
-            goto $ Write $ WorldsDigit 0
+            goto $ Write $ TimelinesDigit 0
         pure $ Produce Nothing
 
-    Write (WorldsDigit i) -> do
-        d <- gets $ leToPlus @1 @(BCDSize k) head . worlds
+    Write (TimelinesDigit i) -> do
+        d <- gets $ leToPlus @1 @(BCDSize k) head . timelines
         wait out_ack do
             modify \st -> st
-                { phase = next (Write . WorldsDigit) i (Write WorldsEOL)
-                , worlds = worlds st <<+ 0
+                { phase = next (Write . TimelinesDigit) i (Write TimelinesEOL)
+                , timelines = timelines st <<+ 0
                 }
         pure $ Produce $ Just d
 
-    Write WorldsEOL -> do
+    Write TimelinesEOL -> do
         wait out_ack do
             goto $ Read $ Line 0
         pure $ Produce Nothing
@@ -147,7 +145,7 @@ controller n k = Circuit $ mealySB (fmap lines . control) s0
       , row = repeat undefined
       , rowState = undefined
       , hits = undefined
-      , worlds = undefined
+      , timelines = undefined
       }
 
     lines = \case
