@@ -44,7 +44,7 @@ data Phase n k
 data St n k = St
     { phase :: Phase n k
     , row :: Vec n (Unsigned k)
-    , rowState :: (Unsigned k, Unsigned k, Unsigned k)
+    , rowState :: RowSt (Unsigned k) (Unsigned k)
     , hits :: BCD (BCDSize k)
     , worlds :: BCD (BCDSize k)
     }
@@ -64,7 +64,7 @@ control (in_data, out_ack) = gets phase >>= {- (\x -> traceShowM x *> pure x) >>
             modify \st -> st
                 { phase = next (Read . Start) i $ Read $ Line 0
                 , row = row st <<+ if source then 1 else 0
-                , rowState = (0, 0, 0)
+                , rowState = initRow
                 }
             pure Consume
 
@@ -82,14 +82,15 @@ control (in_data, out_ack) = gets phase >>= {- (\x -> traceShowM x *> pure x) >>
             pure Consume
 
     FinishLine -> do
-        rowState@(fromLeft1, _, hits) <- gets rowState
+        fromLeft1 <- gets $ head . buffer . rowState
+        hits <- gets $ hitCount . rowState
         row <- gets row
         let row' = row <<+ fromLeft1
         let worlds = sum row'
         modify \st -> st
             { phase = Write $ HitsDigit 0
             , row = row'
-            , rowState = (0, 0, hits)
+            , rowState = newRow (rowState st)
             , hits = toBCD hits
             , worlds = toBCD worlds
             }
