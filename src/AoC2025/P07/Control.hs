@@ -64,8 +64,8 @@ data Control a
     | Produce a
     deriving (Show)
 
-control :: forall n k. Valid n k => (Df.Data Bool, Ack) -> State (St n k) (Control (Maybe Digit))
-control (in_data, out_ack) = gets phase >>= {- (\x -> traceShowM x *> pure x) >>= -} \case
+control :: forall n k -> Valid n k => (Df.Data Bool, Ack) -> State (St n k) (Control (Maybe Digit))
+control n k (in_data, out_ack) = gets phase >>= {- (\x -> traceShowM x *> pure x) >>= -} \case
     Read (Start i) -> case in_data of
         Df.NoData -> pure Busy
         Df.Data source -> do
@@ -147,10 +147,10 @@ controller
     :: forall dom. (HiddenClockResetEnable dom)
     => forall n k -> Valid n k
     => Circuit (Df dom Bool) (Df dom (Maybe Digit))
-controller n k = Circuit $ mealySB (fmap lines . control) s0
+controller n k = Circuit $ mealySB (fmap lines . control n k) s0
   where
     s0 = St
-      { phase = Read @n @k $ Start 0
+      { phase = Read $ Start 0
       , row = repeat undefined
       , rowState = undefined
       , bcdConverter = undefined

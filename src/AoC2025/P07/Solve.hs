@@ -21,12 +21,12 @@ propagateCell splitter above = do
     let hit = above /= 0 && splitter
 
     ~(RowSt{ buffer = fromLeft1 :> fromLeft2 :> Nil, .. }) <- get
-    let below = fromLeft1 + if hit then above else 0
+    let below = if hit then fromLeft1 + above else fromLeft1
     put $ RowSt
-        { buffer = fromLeft2 + gate (not hit) above :> gate hit above :> Nil
-        , hitCount = hitCount + gate hit 1
+        { buffer = (if hit then fromLeft2 else fromLeft2 + above) :> gate hit above :> Nil
+        , hitCount = if hit then hitCount + 1 else hitCount
         , isFirst = False
-        , timelineSum = timelineSum + gate (not isFirst) below
+        , timelineSum = if isFirst then timelineSum else timelineSum + below
         }
     pure below
   where

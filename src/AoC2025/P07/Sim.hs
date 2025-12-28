@@ -49,4 +49,4 @@ main = do
     Options{..} <- execParser $ info (opts <**> helper) fullDesc
 
     problems <- readFile inFile
-    putStr $ sim_board LineLen 64 $ problems
+    putStr $ sim_board LineLen 48 $ problems

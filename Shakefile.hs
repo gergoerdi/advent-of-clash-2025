@@ -23,7 +23,7 @@ boards =
     ]
 
 problems :: [String]
-problems = ["P03"]
+problems = ["P03", "P07"]
 
 main :: IO ()
 main = shakeArgs shakeOptions{ shakeFiles = outDir } do
