@@ -28,25 +28,33 @@ data Input n
     | Line (Index n)
     deriving (Generic, NFDataX, Show)
 
+data OutputPart
+    = Hits
+    | Timelines
+    deriving (Generic, NFDataX, Show)
+
 data Output k
-    = HitsDigit (Index (BCDSize k))
-    | HitsEOL
-    | TimelinesDigit (Index (BCDSize k))
-    | TimelinesEOL
+    = Digit OutputPart (Index (BCDSize k))
+    | EOL OutputPart
     deriving (Generic, NFDataX, Show)
 
 data Phase n k
     = Read (Input n)
-    | FinishLine
+    | Think (Thought k)
     | Write (Output k)
+    deriving (Generic, NFDataX, Show)
+
+data Thought k
+    = FinishLine
+    | ToBCD OutputPart (Index k)
     deriving (Generic, NFDataX, Show)
 
 data St n k = St
     { phase :: Phase n k
     , row :: Vec n (Unsigned k)
     , rowState :: RowSt (Unsigned k) (Unsigned k)
-    , hits :: BCD (BCDSize k)
-    , timelines :: BCD (BCDSize k)
+    , bcdConverter :: ShiftAdd k
+    , bcdOutput :: BCD (BCDSize k)
     }
     deriving (Generic, NFDataX, Show)
 
@@ -75,51 +83,52 @@ control (in_data, out_ack) = gets phase >>= {- (\x -> traceShowM x *> pure x) >>
             above <- gets $ leToPlus @1 @n head . row
             let (below, rowState') = runState (propagateCell splitter above) rowState
             modify \st -> st
-                { phase = next (Read . Line) i FinishLine
+                { phase = next (Read . Line) i (Think FinishLine)
                 , row = row st <<+ below
                 , rowState = rowState'
                 }
             pure Consume
 
-    FinishLine -> do
+    Think FinishLine -> do
         fromLeft1 <- gets $ head . buffer . rowState
         hits <- gets $ hitCount . rowState
-        timelines <- gets $ (+ fromLeft1) . timelineSum . rowState
+        timelines <- gets $ timelineSum . rowState
+        let timelines' = timelines + fromLeft1
         modify \st -> st
-            { phase = Write $ HitsDigit 0
+            { phase = Think $ ToBCD Hits 0
             , row = row st <<+ fromLeft1
-            , rowState = newRow (rowState st)
-            , hits = toBCD hits
-            , timelines = toBCD timelines
+            , rowState = (rowState st){ timelineSum = timelines' }
+            , bcdConverter = initBCD hits
             }
         pure Busy
 
-    Write (HitsDigit i) -> do
-        d <- gets $ leToPlus @1 @(BCDSize k) head . hits
+    Think (ToBCD part i) -> do
+        bcd <- gets bcdConverter
+        let bcd' = stepBCD bcd
+        modify \st -> st
+            { phase = next (Think . ToBCD part) i (Write $ Digit part 0)
+            , bcdConverter = bcd'
+            , bcdOutput = finishBCD bcd'
+            }
+        pure Busy
+
+    Write (Digit part i) -> do
+        d <- gets $ leToPlus @1 @(BCDSize k) head . bcdOutput
         wait out_ack do
             modify \st -> st
-                { phase = next (Write . HitsDigit) i (Write HitsEOL)
-                , hits = hits st <<+ 0
+                { phase = next (Write . Digit part) i (Write $ EOL part)
+                , bcdOutput = bcdOutput st <<+ 0
                 }
         pure $ Produce $ Just d
 
-    Write HitsEOL -> do
-        wait out_ack do
-            goto $ Write $ TimelinesDigit 0
-        pure $ Produce Nothing
-
-    Write (TimelinesDigit i) -> do
-        d <- gets $ leToPlus @1 @(BCDSize k) head . timelines
-        wait out_ack do
-            modify \st -> st
-                { phase = next (Write . TimelinesDigit) i (Write TimelinesEOL)
-                , timelines = timelines st <<+ 0
+    Write (EOL part) -> do
+        wait out_ack $ case part of
+            Hits -> modify \st -> st
+                { phase = Think $ ToBCD Timelines 0
+                , bcdConverter = initBCD (timelineSum . rowState $ st)
+                , rowState = newRow (rowState st)
                 }
-        pure $ Produce $ Just d
-
-    Write TimelinesEOL -> do
-        wait out_ack do
-            goto $ Read $ Line 0
+            Timelines -> goto $ Read $ Line 0
         pure $ Produce Nothing
 
   where
@@ -144,8 +153,8 @@ controller n k = Circuit $ mealySB (fmap lines . control) s0
       { phase = Read @n @k $ Start 0
       , row = repeat undefined
       , rowState = undefined
-      , hits = undefined
-      , timelines = undefined
+      , bcdConverter = undefined
+      , bcdOutput = undefined
       }
 
     lines = \case

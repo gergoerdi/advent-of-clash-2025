@@ -36,6 +36,13 @@ stepBCD = shift . add
       where
         add3 d = if d >= 5 then d + 3 else d
 
+{-# INLINE finishBCD #-}
+finishBCD :: (KnownNat n) => ShiftAdd n -> BCD (BCDSize n)
+finishBCD = map toDigit . fst
+
+applyN :: SNat n -> (a -> a) -> a -> a
+applyN n f = last . iterate (succSNat n) f
+
 {-# INLINE toBCD #-}
 toBCD :: forall n. (KnownNat n) => Unsigned n -> BCD (BCDSize n)
-toBCD = map toDigit . fst . last . iterate (SNat @(n + 1)) stepBCD . initBCD
+toBCD = finishBCD . applyN (SNat @n) stepBCD . initBCD
