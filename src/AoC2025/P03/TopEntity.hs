@@ -5,13 +5,11 @@ module AoC2025.P03.TopEntity (board, topEntity, Valid) where
 import Clash.Prelude hiding (print)
 import Clash.Annotations.TH
 import Clash.Class.Counter
+import Data.Word
 
 import AoC2025.Serial
 import AoC2025.BCD (Digit)
 import AoC2025.P03.Control
-
-import Data.Word (Word8)
-import Data.Char (chr)
 
 import Protocols
 import qualified Protocols.Df as Df
