@@ -20,6 +20,27 @@ original AoC inputs, but you can basically just copy-paste them into a
 serial terminal. The result is sent back over serial in human-readable
 format.
 
+Simulation
+----------
+
+There are two executables for each problem:
+
+* A purely software one that uses the underlying functions of the
+solver, but in a straightforward way (e.g. it can use recursion, or
+unbounded datatypes)
+
+* A Clash simulation of the circuit that feeds the problem serially
+  and then outputs the serial output.
+
+You can run these for e.g. problem #3 with:
+
+    $ cabal run -- p03-soft --help
+    $ cabal run -- p03-sim --help
+
+Each program requires an `--input` argument pointing to the downloaded
+AoC problem input textfile, and the `--part1` or `--part2` flag to
+select the appropriate problem version.
+
 Build system
 ------------
 

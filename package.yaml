@@ -63,7 +63,7 @@ ghc-options:
   -Wunused-imports
 
 executables:
-  p03:
+  p03-soft:
     source-dirs: src
     main: AoC2025.P03.Main
 
@@ -71,7 +71,7 @@ executables:
     source-dirs: src
     main: AoC2025.P03.Sim
 
-  p07:
+  p07-soft:
     source-dirs: src
     main: AoC2025.P07.Main
     
