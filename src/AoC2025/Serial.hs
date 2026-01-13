@@ -56,25 +56,23 @@ simCircuit finish circuit = init sim
   where
     sim = signalAutomaton $ bundle . toSignals circuit . unbundle
 
-    init (Automaton sim) = feed sim'
+    init (Automaton step) = feed sim'
       where
-        ((ack, out), sim') = sim (Df.NoData, Ack False)
+        ((ack, out), sim') = step (Df.NoData, Ack False)
 
-    feed (Automaton sim) = \case
+    feed sim@(Automaton step) = \case
         (x:xs) -> prepend out $ feed sim' $ case ack of
             Ack False -> x:xs
             Ack True -> xs
           where
-            ((ack, out), sim') = sim (Df.Data x, Ack True)
-        [] -> prepend out $ consume sim'
-          where
-            ((ack, out), sim') = sim (Df.NoData, Ack True)
+            ((ack, out), sim') = step (Df.Data x, Ack True)
+        [] -> consume sim
 
-    consume (Automaton sim) = prepend out $ case out of
+    consume (Automaton step) = prepend out $ case out of
         Df.Data x | finish x -> []
         _ -> consume sim'
       where
-        ((ack, out), sim') = sim (Df.NoData, Ack True)
+        ((ack, out), sim') = step (Df.NoData, Ack True)
 
     prepend = \case
         Df.NoData -> id
