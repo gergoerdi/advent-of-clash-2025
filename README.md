@@ -34,8 +34,8 @@ unbounded datatypes)
 
 You can run these for e.g. problem #3 with:
 
-    $ cabal run -- p03-soft --help
-    $ cabal run -- p03-sim --help
+    $ hpack && cabal run -- p03-soft --help
+    $ hpack && cabal run -- p03-sim --help
 
 Each program requires an `--input` argument pointing to the downloaded
 AoC problem input textfile, and the `--part1` or `--part2` flag to
