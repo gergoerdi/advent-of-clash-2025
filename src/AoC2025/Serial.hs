@@ -1,6 +1,7 @@
-{-# LANGUAGE BlockArguments, TupleSections, NumericUnderscores #-}
+{-# LANGUAGE BlockArguments, TupleSections, NumericUnderscores, LambdaCase #-}
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE RequiredTypeArguments #-}
+{-# LANGUAGE RankNTypes #-}
 {-# OPTIONS -fplugin=Protocols.Plugin #-}
 module AoC2025.Serial where
 
@@ -9,6 +10,10 @@ import Clash.Prelude hiding (lift)
 import Protocols
 import qualified Protocols.Df as Df
 import Clash.Cores.UART(uart, ValidBaud)
+import Control.Arrow.Transformer.Automaton
+import Data.Char (chr)
+import Data.Word
+import Clash.Format (ascii)
 
 type SerialRate = 115_200
 
@@ -45,3 +50,38 @@ serialize baud par_circuit = uncircuit $ circuit \rx -> do
     (in_byte, tx) <- uartDf (SNat @baud) -< (out_byte, rx)
     out_byte <- Df.map pack <| par_circuit <| Df.map unpack <| buffer -< in_byte
     idC -< tx
+
+simCircuit :: (KnownDomain dom) => (o -> Bool) -> (HiddenClockResetEnable dom => Circuit (Df dom i) (Df dom o)) -> [i] -> [o]
+simCircuit finish circuit = init sim
+  where
+    sim = signalAutomaton $ bundle . toSignals circuit . unbundle
+
+    init (Automaton sim) = feed sim'
+      where
+        ((ack, out), sim') = sim (Df.NoData, Ack False)
+
+    feed (Automaton sim) = \case
+        (x:xs) -> prepend out $ feed sim' $ case ack of
+            Ack False -> x:xs
+            Ack True -> xs
+          where
+            ((ack, out), sim') = sim (Df.Data x, Ack True)
+        [] -> prepend out $ consume sim'
+          where
+            ((ack, out), sim') = sim (Df.NoData, Ack True)
+
+    consume (Automaton sim) = prepend out $ case out of
+        Df.Data x | finish x -> []
+        _ -> consume sim'
+      where
+        ((ack, out), sim') = sim (Df.NoData, Ack True)
+
+    prepend = \case
+        Df.NoData -> id
+        Df.Data x -> (x:)
+
+simCircuitUntilFinalLine :: (KnownDomain dom) => (HiddenClockResetEnable dom => Circuit (Df dom Word8) (Df dom Word8)) -> String -> String
+simCircuitUntilFinalLine circuit =
+    fmap (chr . fromIntegral) .
+    simCircuit (== ascii '\n') circuit .
+    fmap ascii

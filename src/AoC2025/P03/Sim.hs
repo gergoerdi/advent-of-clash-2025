@@ -6,15 +6,7 @@ import Clash.Prelude
 import Options.Applicative
 
 import AoC2025.P03.TopEntity (Valid, board)
-import Protocols.Internal (simulateCSE)
-import Clash.Format (ascii)
-import Data.Char (chr)
-
-sim_board :: forall n k m -> Valid n k m => String -> String
-sim_board n k m =
-    fmap (chr . fromIntegral) .
-    simulateCSE @System (exposeClockResetEnable $ board n k m) .
-    fmap ascii
+import AoC2025.Serial
 
 data Part = Part1 | Part2
 
@@ -43,6 +35,9 @@ opts = do
     pure Options{..}
 
 type LineLen = 100
+
+sim_board :: forall n k m -> Valid n k m => String -> String
+sim_board n k m = simCircuitUntilFinalLine @System (board n k m)
 
 main :: IO ()
 main = do

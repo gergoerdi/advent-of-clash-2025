@@ -19,6 +19,7 @@ dependencies:
 
   - mtl
   - transformers
+  - arrows
 
   - clash-protocols
   - clash-cores
